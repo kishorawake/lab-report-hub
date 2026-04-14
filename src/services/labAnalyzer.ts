@@ -44,6 +44,9 @@ export interface AbnormalFinding {
   testName: string;
   status: TestStatus;
   explanation: string;
+  possibleCauses: string[];
+  consequences: string[];
+  reductionTips: string[];
 }
 
 export interface RecommendedAction {
@@ -108,21 +111,26 @@ function groupIntoPanels(tests: LabTest[]): PanelSummary[] {
 function calculateHealthScore(tests: LabTest[]): { score: number; grade: string } {
   if (tests.length === 0) return { score: 0, grade: "N/A" };
 
-  let totalPenalty = 0;
+  // Each test starts at full points. Abnormal tests lose points proportionally.
+  // slightly off = 50% of that test's contribution, critical = 100% penalty
+  let totalScore = 0;
   for (const test of tests) {
     switch (test.status) {
+      case "normal":
+        totalScore += 1;
+        break;
       case "slightly_low":
       case "slightly_high":
-        totalPenalty += 2;
+        totalScore += 0.5;
         break;
       case "critical_low":
       case "critical_high":
-        totalPenalty += 5;
+        totalScore += 0;
         break;
     }
   }
 
-  const score = Math.max(0, Math.min(100, Math.round(100 - (totalPenalty / tests.length) * 100)));
+  const score = Math.max(0, Math.min(100, Math.round((totalScore / tests.length) * 100)));
 
   let grade: string;
   if (score >= 90) grade = "A";
