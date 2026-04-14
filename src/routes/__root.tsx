@@ -35,10 +35,14 @@ export const Route = createRootRoute({
       { name: "description", content: "Upload your lab report and get instant AI-powered analysis with clear explanations and health scores." },
       { name: "author", content: "AI Lab Analyzer" },
       { property: "og:title", content: "AI Lab Analyzer" },
-      { property: "og:description", content: "Upload your lab report and get instant AI-powered analysis." },
+      { property: "og:description", content: "Upload your lab report and get instant AI-powered analysis with clear explanations and health scores." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "AI Lab Analyzer" },
+      { name: "twitter:description", content: "Upload your lab report and get instant AI-powered analysis with clear explanations and health scores." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/O13BMQLE99hhVZ0oEyxNxWXnoWi1/social-images/social-1776168753504-Copilot_20260414_131252.webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/O13BMQLE99hhVZ0oEyxNxWXnoWi1/social-images/social-1776168753504-Copilot_20260414_131252.webp" },
     ],
     links: [
       {
