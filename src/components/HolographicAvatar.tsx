@@ -147,15 +147,17 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [displayedText, setDisplayedText] = useState("");
   const [isTyping, setIsTyping] = useState(true);
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(false); // Auto-enabled
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showSubtitles, setShowSubtitles] = useState(true);
   const [isProjected, setIsProjected] = useState(false);
+  const [isAutoPlaying, setIsAutoPlaying] = useState(true);
 
   const synthRef = useRef<SpeechSynthesisUtterance | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const avatarRef = useRef<HTMLDivElement>(null);
   const glowControls = useAnimation();
+  const autoPlayRef = useRef(true);
 
   /* Projection animation on mount */
   useEffect(() => {
@@ -199,16 +201,22 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
     return () => clearInterval(interval);
   }, [currentMsg, mode]);
 
-  /* TTS */
-  const speak = useCallback((text: string) => {
+  /* TTS with auto-advance callback */
+  const speak = useCallback((text: string, onEndCallback?: () => void) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text.replace(/[⚠️🔴🍎❤️🥬💧✅😊]/g, ""));
     utterance.rate = 0.95;
     utterance.pitch = 1.0;
     utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      onEndCallback?.();
+    };
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      onEndCallback?.();
+    };
     synthRef.current = utterance;
     window.speechSynthesis.speak(utterance);
   }, []);
@@ -216,15 +224,66 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
   const stopSpeaking = useCallback(() => {
     window.speechSynthesis?.cancel();
     setIsSpeaking(false);
+    setIsAutoPlaying(false);
+    autoPlayRef.current = false;
+  }, []);
+
+  /* Auto-play: advance through messages, then switch modes */
+  const modeOrder: SummaryMode[] = ["full", "critical", "lifestyle"];
+
+  const advanceAutoPlay = useCallback(() => {
+    if (!autoPlayRef.current) return;
+
+    setCurrentMsg((prev) => {
+      // We need to read current mode and messages length
+      return prev; // handled below
+    });
   }, []);
 
   useEffect(() => {
-    if (!isMuted && !isTyping) speak(messages[currentMsg]);
-    return () => { stopSpeaking(); };
-  }, [currentMsg, isTyping, isMuted]);
+    if (!isAutoPlaying || isMuted || isTyping) return;
+
+    const currentMessages = messages;
+    const advanceAfterSpeak = () => {
+      if (!autoPlayRef.current) return;
+
+      const nextMsg = currentMsg + 1;
+      if (nextMsg < currentMessages.length) {
+        // More messages in current mode
+        setTimeout(() => {
+          if (autoPlayRef.current) setCurrentMsg(nextMsg);
+        }, 500);
+      } else {
+        // Switch to next mode
+        const currentModeIndex = modeOrder.indexOf(mode);
+        const nextModeIndex = currentModeIndex + 1;
+        if (nextModeIndex < modeOrder.length) {
+          setTimeout(() => {
+            if (autoPlayRef.current) {
+              setMode(modeOrder[nextModeIndex]);
+              // currentMsg will reset to 0 via the mode change effect
+            }
+          }, 800);
+        } else {
+          // All done
+          setIsAutoPlaying(false);
+          autoPlayRef.current = false;
+        }
+      }
+    };
+
+    speak(currentMessages[currentMsg], advanceAfterSpeak);
+    return () => { window.speechSynthesis?.cancel(); };
+  }, [currentMsg, isTyping, isMuted, isAutoPlaying, mode]);
 
   const toggleMute = () => {
-    if (!isMuted) stopSpeaking();
+    if (!isMuted) {
+      stopSpeaking();
+    } else {
+      // Re-enable: restart auto-play from current position
+      setIsAutoPlaying(true);
+      autoPlayRef.current = true;
+    }
     setIsMuted(!isMuted);
   };
 
