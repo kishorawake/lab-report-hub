@@ -589,6 +589,32 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
           </div>
         </div>
       </motion.div>
+
+      {/* ─── AI Network Video ─── */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1.4 }}
+        className="mt-3 rounded-xl overflow-hidden relative holo-glow"
+      >
+        <div className="holo-scanlines rounded-xl" style={{ opacity: 0.2 }} />
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="w-full h-auto rounded-xl opacity-70"
+          style={{
+            filter: "hue-rotate(180deg) saturate(1.5)",
+            mixBlendMode: "screen",
+          }}
+        >
+          <source src="/ai-network-bg.mp4" type="video/mp4" />
+        </video>
+        <div className="absolute bottom-1 right-2 text-[7px] text-holo/30 font-mono">
+          AI Neural Network Visualization
+        </div>
+      </motion.div>
     </motion.div>
   );
 };
