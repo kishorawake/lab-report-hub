@@ -48,7 +48,7 @@ const SparklineChart = ({ panel }: MiniChartProps) => {
             fontSize: "10px",
             color: "#fff",
           }}
-          formatter={(value: number) => [value, ""]}
+          formatter={(value: any) => [value, ""]}
           labelFormatter={() => ""}
         />
         <Area
