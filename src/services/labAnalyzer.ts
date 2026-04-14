@@ -44,6 +44,9 @@ export interface AbnormalFinding {
   testName: string;
   status: TestStatus;
   explanation: string;
+  possibleCauses: string[];
+  consequences: string[];
+  reductionTips: string[];
 }
 
 export interface RecommendedAction {
@@ -108,21 +111,26 @@ function groupIntoPanels(tests: LabTest[]): PanelSummary[] {
 function calculateHealthScore(tests: LabTest[]): { score: number; grade: string } {
   if (tests.length === 0) return { score: 0, grade: "N/A" };
 
-  let totalPenalty = 0;
+  // Each test starts at full points. Abnormal tests lose points proportionally.
+  // slightly off = 50% of that test's contribution, critical = 100% penalty
+  let totalScore = 0;
   for (const test of tests) {
     switch (test.status) {
+      case "normal":
+        totalScore += 1;
+        break;
       case "slightly_low":
       case "slightly_high":
-        totalPenalty += 2;
+        totalScore += 0.5;
         break;
       case "critical_low":
       case "critical_high":
-        totalPenalty += 5;
+        totalScore += 0;
         break;
     }
   }
 
-  const score = Math.max(0, Math.min(100, Math.round(100 - (totalPenalty / tests.length) * 100)));
+  const score = Math.max(0, Math.min(100, Math.round((totalScore / tests.length) * 100)));
 
   let grade: string;
   if (score >= 90) grade = "A";
@@ -134,67 +142,246 @@ function calculateHealthScore(tests: LabTest[]): { score: number; grade: string 
   return { score, grade };
 }
 
-// Generate explanations for abnormal findings
-const explanations: Record<string, Record<string, string>> = {
+// Clinical correlation data for abnormal findings
+interface ClinicalCorrelation {
+  explanation: string;
+  possibleCauses: string[];
+  consequences: string[];
+  reductionTips: string[];
+}
+
+const clinicalData: Record<string, Record<string, ClinicalCorrelation>> = {
   "MCH": {
-    slightly_low: "MCH measures the average amount of oxygen-carrying protein (hemoglobin) in your red blood cells. Your MCH is slightly lower than normal. This could suggest that your red blood cells are a bit smaller than ideal, or that they contain slightly less hemoglobin. It might be an early sign of something like iron deficiency, but it's often not critical on its own.",
-    critical_low: "Your MCH is critically low, indicating a significant deficiency in hemoglobin within your red blood cells. This requires immediate medical attention.",
+    slightly_low: {
+      explanation: "MCH measures the average hemoglobin per red blood cell. Yours is slightly below normal, suggesting smaller or paler red blood cells.",
+      possibleCauses: ["Iron deficiency (most common)", "Chronic disease or inflammation", "Thalassemia trait (genetic)", "Vitamin B6 deficiency"],
+      consequences: ["Mild fatigue and reduced exercise tolerance", "Can progress to iron-deficiency anemia if untreated", "May indicate underlying nutrient absorption issues"],
+      reductionTips: ["Eat iron-rich foods: red meat, spinach, lentils, fortified cereals", "Pair iron foods with vitamin C (citrus, bell peppers) for better absorption", "Avoid tea/coffee with meals as they block iron absorption", "Consider iron supplements after consulting your doctor"],
+    },
+    critical_low: {
+      explanation: "Your MCH is critically low, indicating severe hemoglobin deficiency in red blood cells requiring immediate attention.",
+      possibleCauses: ["Severe iron deficiency anemia", "Thalassemia", "Lead poisoning", "Chronic blood loss"],
+      consequences: ["Severe fatigue and weakness", "Shortness of breath", "Heart palpitations", "Organ damage from poor oxygen delivery"],
+      reductionTips: ["Seek immediate medical care", "Iron infusion therapy may be needed", "Get tested for underlying causes like GI bleeding", "Follow up with a hematologist"],
+    },
   },
   "MCHC": {
-    slightly_low: "MCHC measures the average concentration of hemoglobin inside your red blood cells. Your MCHC is slightly lower than normal. This also points to red blood cells having a slightly lower concentration of oxygen-carrying protein. Similar to MCH, it could relate to iron levels or how your body makes red blood cells.",
-    critical_low: "Your MCHC is critically low, indicating severe hemoglobin concentration issues. Please see a doctor immediately.",
+    slightly_low: {
+      explanation: "MCHC measures hemoglobin concentration in red blood cells. A low value means your cells carry less oxygen than ideal.",
+      possibleCauses: ["Iron deficiency", "Chronic inflammation", "Early-stage anemia", "Vitamin deficiency (B12, folate)"],
+      consequences: ["Reduced oxygen delivery to tissues", "Fatigue and pallor", "May worsen if iron stores continue to deplete"],
+      reductionTips: ["Increase dietary iron: beef liver, shellfish, beans, dark leafy greens", "Take vitamin C with meals to enhance iron absorption", "Get ferritin levels checked to assess iron stores", "Avoid calcium supplements with iron-rich meals"],
+    },
+    critical_low: {
+      explanation: "Your MCHC is critically low, indicating severe hemoglobin concentration issues in your red blood cells.",
+      possibleCauses: ["Severe iron deficiency", "Thalassemia", "Sideroblastic anemia", "Chronic disease"],
+      consequences: ["Severe tissue hypoxia", "Cardiac stress", "Organ dysfunction"],
+      reductionTips: ["Urgent medical evaluation needed", "Possible blood transfusion", "Iron infusion therapy", "Treat underlying cause"],
+    },
+  },
+  "Neutrophils": {
+    slightly_high: {
+      explanation: "Neutrophils are your body's first-line infection fighters. A slight elevation often indicates your immune system is actively responding.",
+      possibleCauses: ["Bacterial infection (most common)", "Physical or emotional stress", "Smoking", "Intense exercise", "Certain medications (corticosteroids)"],
+      consequences: ["Usually temporary and self-resolving", "May indicate subclinical infection", "Chronic elevation linked to cardiovascular risk"],
+      reductionTips: ["Address any underlying infection with your doctor", "Manage stress through meditation, yoga, or deep breathing", "If you smoke, consider a cessation program", "Stay hydrated and get adequate sleep"],
+    },
   },
   "HbA1c": {
-    slightly_high: "Your HbA1c is slightly elevated, indicating your average blood sugar over the past 2-3 months has been higher than ideal. This may suggest pre-diabetes. Diet and lifestyle changes can help.",
-    critical_high: "Your HbA1c is critically high, indicating poorly controlled diabetes. This requires immediate medical intervention to prevent serious complications.",
+    slightly_high: {
+      explanation: "HbA1c reflects your average blood sugar over 2-3 months. A slight elevation suggests pre-diabetes or early glucose intolerance.",
+      possibleCauses: ["Insulin resistance (pre-diabetes)", "High carbohydrate diet", "Sedentary lifestyle", "Family history of diabetes", "Excess body weight"],
+      consequences: ["Progression to Type 2 diabetes if untreated", "Increased risk of heart disease", "Nerve damage over time", "Kidney and eye complications"],
+      reductionTips: ["Reduce refined carbs and sugary drinks", "Walk 30 minutes after meals to lower glucose spikes", "Increase fiber intake (vegetables, whole grains, legumes)", "Aim for 7-8 hours of quality sleep", "Lose 5-7% body weight if overweight"],
+    },
+    critical_high: {
+      explanation: "Your HbA1c is critically high, indicating poorly controlled diabetes with sustained high blood sugar for months.",
+      possibleCauses: ["Uncontrolled Type 2 diabetes", "Undiagnosed Type 1 diabetes", "Medication non-compliance", "Severe insulin resistance"],
+      consequences: ["Diabetic ketoacidosis risk", "Accelerated nerve damage (neuropathy)", "Kidney failure (nephropathy)", "Vision loss (retinopathy)", "Cardiovascular disease", "Poor wound healing and infection risk"],
+      reductionTips: ["Seek immediate medical care for medication adjustment", "Monitor blood sugar multiple times daily", "Follow a strict low-glycemic diet", "Start or intensify insulin therapy as directed", "Regular exercise (consult doctor first)", "Check feet daily for wounds"],
+    },
   },
   "Random Blood Sugar": {
-    slightly_high: "Your random blood sugar is slightly elevated. This could be due to a recent meal, stress, or an early sign of blood sugar regulation issues.",
-    critical_high: "Your random blood sugar is critically high. This is a medical emergency. Please seek immediate medical attention.",
+    slightly_high: {
+      explanation: "Your random blood sugar is slightly elevated, which could be post-meal or indicate early glucose regulation issues.",
+      possibleCauses: ["Recent carbohydrate-heavy meal", "Stress response (cortisol)", "Early insulin resistance", "Certain medications"],
+      consequences: ["May indicate pre-diabetes", "Increased cardiovascular risk", "Can damage blood vessels over time"],
+      reductionTips: ["Retest fasting glucose for confirmation", "Reduce portion sizes of starchy foods", "Add protein and healthy fats to every meal", "Walk for 15-20 minutes after eating"],
+    },
+    critical_high: {
+      explanation: "Your blood sugar is dangerously elevated. This is a medical emergency requiring immediate intervention.",
+      possibleCauses: ["Uncontrolled diabetes", "Diabetic ketoacidosis", "Severe infection", "Pancreatic dysfunction"],
+      consequences: ["Diabetic coma risk", "Organ damage", "Dehydration", "Life-threatening electrolyte imbalances"],
+      reductionTips: ["Go to the emergency room immediately", "Do not attempt to self-treat", "Bring these lab results with you", "You may need IV insulin and fluids"],
+    },
   },
   "LDL Cholesterol": {
-    slightly_high: "Your LDL (bad) cholesterol is slightly elevated. This increases your risk of heart disease over time. Dietary changes, exercise, and sometimes medication can help bring it down.",
-    critical_high: "Your LDL cholesterol is dangerously high and significantly increases cardiovascular risk. Immediate medical intervention is recommended.",
+    slightly_high: {
+      explanation: "LDL ('bad' cholesterol) carries cholesterol to arteries. Elevated levels build plaque in blood vessels over time.",
+      possibleCauses: ["Diet high in saturated/trans fats", "Genetic factors (familial hypercholesterolemia)", "Sedentary lifestyle", "Obesity", "Hypothyroidism"],
+      consequences: ["Atherosclerosis (artery hardening)", "Increased heart attack risk", "Stroke risk", "Peripheral artery disease"],
+      reductionTips: ["Replace saturated fats with olive oil, nuts, avocados", "Eat more soluble fiber: oats, beans, apples, citrus", "Exercise 150+ minutes per week", "Add omega-3 rich fish (salmon, mackerel) 2x/week", "Consider plant sterols/stanols supplements"],
+    },
+    critical_high: {
+      explanation: "Your LDL is dangerously high, significantly accelerating cardiovascular disease risk.",
+      possibleCauses: ["Familial hypercholesterolemia", "Severe dietary imbalance", "Untreated hypothyroidism", "Nephrotic syndrome"],
+      consequences: ["Rapid plaque buildup", "High heart attack and stroke risk", "Peripheral vascular disease"],
+      reductionTips: ["Medication (statins) likely needed — see your doctor", "Strict dietary changes immediately", "Daily cardiovascular exercise", "Get tested for genetic cholesterol disorders"],
+    },
+  },
+  "Non-HDL Cholesterol": {
+    slightly_high: {
+      explanation: "Non-HDL cholesterol includes all 'bad' cholesterol types. It's a comprehensive marker of cardiovascular risk.",
+      possibleCauses: ["High LDL and/or VLDL cholesterol", "High triglycerides", "Poor diet", "Metabolic syndrome"],
+      consequences: ["Atherosclerosis progression", "Increased cardiovascular event risk", "Correlates with insulin resistance"],
+      reductionTips: ["Follow a Mediterranean-style diet", "Increase physical activity", "Limit alcohol intake", "Maintain healthy body weight", "Reduce processed food consumption"],
+    },
   },
   "Alkaline Phosphatase": {
-    slightly_high: "Your Alkaline Phosphatase is slightly elevated. This enzyme is found in the liver and bones. A slight elevation could be due to various reasons including bone growth, liver conditions, or even certain medications.",
-    critical_high: "Your Alkaline Phosphatase is critically high, potentially indicating liver disease, bone disorders, or other serious conditions.",
+    slightly_high: {
+      explanation: "ALP is an enzyme in liver and bones. Slight elevation may reflect liver stress, bone turnover, or even recent exercise.",
+      possibleCauses: ["Liver congestion or fatty liver", "Bone healing or growth", "Vitamin D deficiency", "Certain medications", "Bile duct obstruction"],
+      consequences: ["May indicate early liver disease", "Could suggest bone metabolism issues", "Usually benign if isolated"],
+      reductionTips: ["Get liver function fully evaluated (GGT, bilirubin)", "Check vitamin D levels", "Limit alcohol consumption", "Maintain a healthy weight to reduce liver fat", "Review medications with your doctor"],
+    },
+    critical_high: {
+      explanation: "Critically high ALP suggests significant liver or bone pathology requiring urgent evaluation.",
+      possibleCauses: ["Bile duct obstruction", "Liver disease", "Bone disorders (Paget's disease)", "Certain cancers"],
+      consequences: ["Progressive liver damage", "Bone weakening", "Potential malignancy"],
+      reductionTips: ["Urgent medical evaluation with imaging", "Liver ultrasound recommended", "Bone density scan may be needed", "Follow up with specialist"],
+    },
   },
   "Iron": {
-    slightly_low: "Your iron levels are slightly low. Iron is crucial for making hemoglobin. Low iron can cause fatigue, weakness, and pale skin. Consider iron-rich foods like spinach, red meat, and legumes.",
-    critical_low: "Your iron is critically low, indicating severe iron deficiency that may require iron supplementation or infusion therapy.",
+    slightly_low: {
+      explanation: "Iron is essential for hemoglobin production. Low iron is the world's most common nutritional deficiency.",
+      possibleCauses: ["Insufficient dietary iron", "Heavy menstruation", "Poor absorption (celiac, gastritis)", "Chronic blood loss (GI tract)"],
+      consequences: ["Fatigue and weakness", "Hair loss and brittle nails", "Restless legs syndrome", "Impaired cognitive function", "Weakened immunity"],
+      reductionTips: ["Eat iron-rich foods: red meat, organ meats, shellfish", "Plant sources: spinach, lentils, tofu, fortified cereals", "Pair with vitamin C for 6x better absorption", "Cook in cast iron cookware", "Avoid coffee/tea within 1 hour of iron-rich meals"],
+    },
+    critical_low: {
+      explanation: "Your iron is critically depleted, indicating severe iron deficiency requiring medical intervention.",
+      possibleCauses: ["Chronic blood loss (GI bleeding, heavy periods)", "Malabsorption disorders", "Severe dietary deficiency", "Hookworm infection (in endemic areas)"],
+      consequences: ["Severe anemia requiring treatment", "Heart strain and palpitations", "Pregnancy complications", "Impaired immune function", "Pica (craving non-food items)"],
+      reductionTips: ["See your doctor immediately — oral iron may not be enough", "IV iron infusion may be needed for rapid correction", "Get tested for GI bleeding (stool occult blood test)", "Screen for celiac disease", "Follow up with repeat labs in 4-6 weeks"],
+    },
+  },
+  "Ferritin": {
+    slightly_low: {
+      explanation: "Ferritin reflects your body's iron stores. Low ferritin means your iron reserves are depleting even if hemoglobin is still normal.",
+      possibleCauses: ["Early iron deficiency", "Increased iron demand (pregnancy, growth)", "Blood donation", "Vegetarian/vegan diet without supplementation"],
+      consequences: ["Fatigue even before anemia develops", "Hair thinning and loss", "Reduced exercise performance", "Will progress to anemia if not addressed"],
+      reductionTips: ["Start iron supplementation (ferrous sulfate 325mg daily)", "Take iron on empty stomach with vitamin C", "Recheck ferritin in 3 months", "Ensure adequate B12 and folate intake"],
+    },
   },
   "CRP": {
-    slightly_high: "Your CRP (C-Reactive Protein) is slightly elevated, indicating some inflammation in your body. This could be due to infection, injury, or chronic conditions.",
-    critical_high: "Your CRP is critically high, indicating severe inflammation. This requires immediate investigation to determine the cause.",
+    slightly_high: {
+      explanation: "CRP (C-Reactive Protein) is a marker of inflammation. Elevation indicates your body is fighting something.",
+      possibleCauses: ["Infection (viral or bacterial)", "Autoimmune conditions", "Obesity", "Chronic stress", "Gum disease"],
+      consequences: ["Indicates systemic inflammation", "Elevated cardiovascular risk if chronic", "May mask underlying conditions"],
+      reductionTips: ["Identify and treat underlying infection", "Anti-inflammatory diet: berries, fatty fish, turmeric, green tea", "Regular moderate exercise", "Adequate sleep (7-9 hours)", "Manage stress and maintain dental health"],
+    },
+    critical_high: {
+      explanation: "Your CRP is critically elevated, indicating severe systemic inflammation requiring urgent investigation.",
+      possibleCauses: ["Severe bacterial infection or sepsis", "Major tissue injury or surgery", "Active autoimmune flare", "Certain cancers"],
+      consequences: ["Organ damage from uncontrolled inflammation", "Sepsis risk", "Tissue destruction", "Cardiovascular emergency"],
+      reductionTips: ["Seek immediate medical attention", "Blood cultures and imaging may be needed", "IV antibiotics if infection confirmed", "Close monitoring in clinical setting"],
+    },
   },
   "Sodium": {
-    critical_low: "Your sodium level is critically low (hyponatremia). This can cause confusion, seizures, and is a medical emergency.",
-    critical_high: "Your sodium level is critically high (hypernatremia). This requires immediate medical attention.",
+    critical_low: {
+      explanation: "Critically low sodium (hyponatremia) disrupts the water-salt balance in your body, affecting brain and muscle function.",
+      possibleCauses: ["Excess water intake", "Heart failure or liver cirrhosis", "SIADH (hormone disorder)", "Diuretic medications", "Adrenal insufficiency"],
+      consequences: ["Confusion and headache", "Seizures", "Brain swelling (cerebral edema)", "Coma in severe cases", "Can be life-threatening"],
+      reductionTips: ["Emergency medical treatment required", "Fluid restriction may be needed", "IV saline under careful monitoring", "Identify and treat underlying cause", "Do NOT try to correct at home"],
+    },
+    critical_high: {
+      explanation: "Critically high sodium indicates severe dehydration or sodium excess.",
+      possibleCauses: ["Severe dehydration", "Diabetes insipidus", "Excess sodium intake", "Kidney disease"],
+      consequences: ["Confusion and irritability", "Muscle twitching", "Seizures", "Brain hemorrhage in severe cases"],
+      reductionTips: ["Seek emergency care immediately", "Careful IV fluid replacement needed", "Gradual correction to prevent brain injury"],
+    },
   },
   "Potassium": {
-    critical_low: "Your potassium is critically low. This can cause dangerous heart rhythm problems and requires immediate treatment.",
-    critical_high: "Your potassium is critically high. This is life-threatening and can cause cardiac arrest. Seek emergency care immediately.",
-  },
-  "Calcium": {
-    critical_low: "Your calcium is critically low. This can cause muscle spasms, numbness, and heart problems. Immediate treatment is needed.",
-    critical_high: "Your calcium is critically high. This can cause kidney stones, bone weakening, and heart issues.",
-  },
-  "Platelet Count": {
-    slightly_low: "Your platelet count is slightly low. Platelets help your blood clot. A slight decrease is often not concerning but should be monitored.",
-    critical_low: "Your platelet count is critically low, increasing your risk of uncontrolled bleeding. Seek immediate medical attention.",
-    slightly_high: "Your platelet count is slightly elevated. This could be reactive to infection, inflammation, or iron deficiency.",
-    critical_high: "Your platelet count is critically high. This increases your risk of blood clots and requires medical evaluation.",
+    critical_low: {
+      explanation: "Critically low potassium (hypokalemia) is dangerous because potassium controls heart rhythm and muscle function.",
+      possibleCauses: ["Diuretic medications", "Severe vomiting or diarrhea", "Kidney disorders", "Excessive sweating", "Poor dietary intake"],
+      consequences: ["Life-threatening heart arrhythmias", "Muscle weakness and cramps", "Paralysis in severe cases", "Respiratory failure", "Cardiac arrest"],
+      reductionTips: ["Emergency treatment with IV potassium", "ECG monitoring required", "Once stable: eat potassium-rich foods (bananas, potatoes, spinach, avocados)", "Review medications that may deplete potassium", "Daily potassium supplement as prescribed"],
+    },
+    critical_high: {
+      explanation: "Critically high potassium is immediately life-threatening due to cardiac effects.",
+      possibleCauses: ["Kidney failure", "ACE inhibitors or potassium-sparing diuretics", "Tissue damage or burns", "Acidosis"],
+      consequences: ["Fatal cardiac arrhythmia", "Cardiac arrest", "Muscle weakness"],
+      reductionTips: ["Go to the ER immediately", "IV calcium, insulin, and glucose for emergency lowering", "Dialysis may be needed", "Avoid all high-potassium foods until resolved"],
+    },
   },
   "Chloride": {
-    critical_low: "Your chloride is critically low, which can indicate dehydration, kidney problems, or metabolic issues.",
-    critical_high: "Your chloride is critically high, potentially indicating dehydration or kidney dysfunction.",
+    critical_low: {
+      explanation: "Critically low chloride (hypochloremia) often occurs alongside sodium imbalances and affects acid-base balance.",
+      possibleCauses: ["Prolonged vomiting", "Diuretic use", "Heart failure", "Metabolic alkalosis", "Cystic fibrosis"],
+      consequences: ["Metabolic alkalosis", "Muscle weakness and twitching", "Breathing difficulties", "Worsening of other electrolyte imbalances"],
+      reductionTips: ["Medical treatment with IV normal saline", "Treat underlying cause (e.g., stop vomiting)", "Monitor acid-base balance", "Adequate salt intake once stable"],
+    },
+    critical_high: {
+      explanation: "Critically high chloride indicates possible kidney dysfunction or severe dehydration.",
+      possibleCauses: ["Severe dehydration", "Kidney disease", "Metabolic acidosis", "Excess saline administration"],
+      consequences: ["Metabolic acidosis", "Kidney stress", "Worsening dehydration"],
+      reductionTips: ["IV fluid therapy under medical supervision", "Treat underlying kidney or metabolic issues", "Hydrate adequately once cleared by doctor"],
+    },
+  },
+  "Calcium": {
+    critical_low: {
+      explanation: "Critically low calcium (hypocalcemia) affects nerves, muscles, and heart function. Calcium is vital for cell signaling.",
+      possibleCauses: ["Vitamin D deficiency", "Hypoparathyroidism", "Kidney failure", "Magnesium deficiency", "Pancreatitis"],
+      consequences: ["Muscle spasms and tetany", "Tingling in fingers and lips", "Seizures", "Heart rhythm problems", "Osteoporosis long-term"],
+      reductionTips: ["Emergency IV calcium gluconate", "Check vitamin D and parathyroid levels", "Once stable: dairy, fortified foods, leafy greens", "Vitamin D3 supplementation (2000-4000 IU/day)", "Weight-bearing exercise for bone health"],
+    },
+    critical_high: {
+      explanation: "Critically high calcium (hypercalcemia) can affect kidneys, heart, and brain function.",
+      possibleCauses: ["Hyperparathyroidism", "Certain cancers", "Excess vitamin D", "Granulomatous diseases"],
+      consequences: ["Kidney stones", "Bone loss", "Confusion and fatigue", "Heart rhythm problems"],
+      reductionTips: ["Urgent medical evaluation", "IV fluids for hydration", "Bisphosphonate therapy may be needed", "Treat underlying cause"],
+    },
+  },
+  "Platelet Count": {
+    slightly_low: {
+      explanation: "Platelets help your blood clot. A slight decrease is often temporary and benign but should be monitored.",
+      possibleCauses: ["Viral infection", "Certain medications", "Alcohol consumption", "Autoimmune conditions", "Liver disease"],
+      consequences: ["Slightly increased bleeding tendency", "Easy bruising", "Usually self-resolving if mild"],
+      reductionTips: ["Avoid aspirin and NSAIDs unless prescribed", "Limit alcohol intake", "Eat folate-rich foods (leafy greens, citrus)", "Recheck in 4-6 weeks", "Report unusual bruising to your doctor"],
+    },
+    critical_low: {
+      explanation: "Critically low platelets increase your risk of spontaneous and uncontrollable bleeding.",
+      possibleCauses: ["Immune thrombocytopenia (ITP)", "Bone marrow disorders", "Severe infection", "Medication side effects"],
+      consequences: ["Spontaneous bleeding (gums, nose)", "Internal bleeding risk", "Intracranial hemorrhage in severe cases"],
+      reductionTips: ["Seek immediate hematology consultation", "Avoid all contact sports and injury", "Corticosteroids or IVIG may be needed", "Platelet transfusion if actively bleeding"],
+    },
+    slightly_high: {
+      explanation: "Slightly elevated platelets are often reactive — your body is responding to something.",
+      possibleCauses: ["Iron deficiency (reactive)", "Infection or inflammation", "Post-surgery response", "Chronic inflammatory conditions"],
+      consequences: ["Slightly increased clotting risk", "Usually benign and temporary"],
+      reductionTips: ["Treat underlying cause (iron deficiency, infection)", "Stay hydrated", "Stay active to promote healthy blood flow", "Follow up if persistently elevated"],
+    },
+    critical_high: {
+      explanation: "Critically high platelets significantly increase your risk of blood clots.",
+      possibleCauses: ["Essential thrombocythemia", "Myeloproliferative disorders", "Severe reactive thrombocytosis"],
+      consequences: ["Blood clots (DVT, pulmonary embolism)", "Stroke risk", "Heart attack risk"],
+      reductionTips: ["Urgent hematology referral", "Low-dose aspirin may be started", "Cytoreductive therapy if needed", "Avoid smoking and prolonged immobility"],
+    },
   },
 };
 
-function getExplanation(testName: string, status: TestStatus): string {
-  const statusKey = status.includes("low") ? (status === "critical_low" ? "critical_low" : "slightly_low") : (status === "critical_high" ? "critical_high" : "slightly_high");
-  return explanations[testName]?.[statusKey] || `Your ${testName} is ${status.replace("_", " ")}. Please consult your healthcare provider for a detailed assessment.`;
+function getClinicalCorrelation(testName: string, status: TestStatus): ClinicalCorrelation {
+  const statusKey = status.includes("low")
+    ? (status === "critical_low" ? "critical_low" : "slightly_low")
+    : (status === "critical_high" ? "critical_high" : "slightly_high");
+
+  return clinicalData[testName]?.[statusKey] || {
+    explanation: `Your ${testName} is ${status.replace("_", " ")}. Please consult your healthcare provider for a detailed assessment.`,
+    possibleCauses: ["Various medical conditions", "Dietary factors", "Medication effects", "Lifestyle factors"],
+    consequences: ["May affect overall health if persistent", "Should be monitored over time", "Consult your doctor for personalized assessment"],
+    reductionTips: ["Schedule a follow-up with your doctor", "Maintain a balanced diet", "Stay physically active", "Get adequate sleep and manage stress"],
+  };
 }
 
 function generateAIReport(tests: LabTest[], panels: PanelSummary[]): {
@@ -208,11 +395,17 @@ function generateAIReport(tests: LabTest[], panels: PanelSummary[]): {
   const abnormalTests = tests.filter((t) => t.status !== "normal");
   const criticalTests = abnormalTests.filter((t) => t.status.includes("critical"));
 
-  const abnormalFindings = abnormalTests.map((t) => ({
-    testName: t.name,
-    status: t.status,
-    explanation: getExplanation(t.name, t.status),
-  }));
+  const abnormalFindings: AbnormalFinding[] = abnormalTests.map((t) => {
+    const correlation = getClinicalCorrelation(t.name, t.status);
+    return {
+      testName: t.name,
+      status: t.status,
+      explanation: correlation.explanation,
+      possibleCauses: correlation.possibleCauses,
+      consequences: correlation.consequences,
+      reductionTips: correlation.reductionTips,
+    };
+  });
 
   const hasCritical = criticalTests.length > 0;
   const criticalNames = criticalTests.map((t) => t.name).join(", ");
