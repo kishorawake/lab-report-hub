@@ -89,20 +89,20 @@ function ResultsPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-5"
+          className="flex items-start sm:items-center justify-between gap-3 mb-4 sm:mb-5"
         >
-          <div>
+          <div className="min-w-0">
             <button
               onClick={() => navigate({ to: "/" })}
               className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-1.5 group"
             >
               <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Back
             </button>
-            <h1 className="font-display text-2xl md:text-3xl font-bold text-foreground flex items-center gap-2">
+            <h1 className="font-display text-xl sm:text-2xl md:text-3xl font-bold text-foreground flex items-center gap-2 flex-wrap">
               Your Lab Report Analysis
               <Sparkles className="w-5 h-5 text-primary" />
             </h1>
@@ -111,15 +111,15 @@ function ResultsPage() {
             variant="outline"
             size="sm"
             onClick={() => window.print()}
-            className="hidden md:flex items-center gap-2 hover:shadow-card transition-shadow"
+            className="hidden md:flex items-center gap-2 hover:shadow-card transition-shadow shrink-0"
           >
             <Download className="w-4 h-4" />
             Print Report
           </Button>
         </motion.div>
 
-        <div className="flex gap-5">
-          <div className="hidden lg:block w-72 shrink-0">
+        <div className="grid grid-cols-1 lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[20rem_minmax(0,1fr)] gap-4 sm:gap-5">
+          <div className="min-w-0">
             <HolographicAvatar results={results} />
           </div>
 
@@ -127,17 +127,13 @@ function ResultsPage() {
             variants={stagger}
             initial="hidden"
             animate="show"
-            className="flex-1 min-w-0 space-y-5"
+            className="min-w-0 space-y-4 sm:space-y-5"
           >
-            <div className="lg:hidden">
-              <HolographicAvatar results={results} />
-            </div>
-
             <motion.div variants={fadeUp}>
               <Disclaimer />
             </motion.div>
 
-            <motion.div variants={fadeUp} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <motion.div variants={fadeUp} className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <HealthScoreCard
                 score={results.healthScore}
                 grade={results.healthGrade}
@@ -155,11 +151,11 @@ function ResultsPage() {
             </motion.div>
 
             <motion.div variants={fadeUp}>
-              <h2 className="font-display text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+              <h2 className="font-display text-base sm:text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
                 <span className="w-1 h-5 rounded-full hero-gradient inline-block" />
                 Test Panels Detected
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {results.panels.map((panel, i) => (
                   <TestPanelCard key={panel.name} panel={panel} index={i} />
                 ))}
