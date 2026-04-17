@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, XCircle, ChevronDown, ChevronUp, Lightbulb, TrendingDown, Search } from "lucide-react";
+import { AlertTriangle, XCircle, ChevronDown, ChevronUp, Lightbulb, TrendingDown, Search, ExternalLink, BookOpen } from "lucide-react";
 import { useState } from "react";
 import type { AbnormalFinding } from "@/services/labAnalyzer";
 
@@ -111,6 +111,34 @@ const FindingDetail = ({ finding }: { finding: AbnormalFinding }) => {
                   ))}
                 </ul>
               </div>
+
+              {/* Verified References */}
+              {finding.references && finding.references.length > 0 && (
+                <div className="p-3 rounded-lg bg-muted/40 border border-border/40">
+                  <h5 className="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-2">
+                    <BookOpen className="w-3 h-3 text-primary" />
+                    Verified Medical References
+                  </h5>
+                  <ul className="space-y-1.5">
+                    {finding.references.map((ref, i) => (
+                      <li key={i} className="text-xs">
+                        <a
+                          href={ref.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-start gap-1.5 text-primary hover:underline break-words"
+                        >
+                          <ExternalLink className="w-3 h-3 mt-0.5 shrink-0" />
+                          <span>
+                            <span className="font-medium">{ref.source}:</span>{" "}
+                            <span className="text-foreground/70">{ref.label}</span>
+                          </span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
