@@ -40,6 +40,12 @@ export interface AnalysisResult {
   talkingPoints: string[];
 }
 
+export interface ClinicalReference {
+  label: string;
+  url: string;
+  source: string;
+}
+
 export interface AbnormalFinding {
   testName: string;
   status: TestStatus;
@@ -47,6 +53,7 @@ export interface AbnormalFinding {
   possibleCauses: string[];
   consequences: string[];
   reductionTips: string[];
+  references: ClinicalReference[];
 }
 
 export interface RecommendedAction {
