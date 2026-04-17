@@ -146,20 +146,32 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
   const [currentMsg, setCurrentMsg] = useState(0);
   const [isExpanded, setIsExpanded] = useState(true);
   const [displayedText, setDisplayedText] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  // Audio is OPT-IN (muted by default) — auto-play caused page lag and audio bugs.
+  // Audio is OPT-IN (muted by default). Toggling unmute primes the speech engine.
   const [isMuted, setIsMuted] = useState(true);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showSubtitles, setShowSubtitles] = useState(true);
   const [isProjected, setIsProjected] = useState(false);
+  const [sparkBurst, setSparkBurst] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const avatarRef = useRef<HTMLDivElement>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const speakTokenRef = useRef(0);
 
   /* Projection animation on mount */
   useEffect(() => {
     const timer = setTimeout(() => setIsProjected(true), 300);
     return () => clearTimeout(timer);
+  }, []);
+
+  /* Preload voices (Chrome loads them asynchronously — first call often fails silently) */
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const synth = window.speechSynthesis;
+    const prime = () => synth.getVoices();
+    prime();
+    synth.addEventListener?.("voiceschanged", prime);
+    return () => synth.removeEventListener?.("voiceschanged", prime);
   }, []);
 
   /* GSAP glow pulse on avatar */
@@ -180,40 +192,110 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
   /* Reset msg index on mode change */
   useEffect(() => setCurrentMsg(0), [mode]);
 
-  /* Show full message instantly (typewriter removed — was a CPU hog on mobile) */
+  /* Show full message instantly */
   useEffect(() => {
     setDisplayedText(messages[currentMsg] ?? "");
-    setIsTyping(false);
   }, [currentMsg, messages]);
 
-  /* Manual TTS — only fires when user clicks Replay */
-  const speak = useCallback((text: string) => {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text.replace(/[⚠️🔴🍎❤️🥬💧✅😊]/g, ""));
-    utterance.rate = 0.95;
-    utterance.pitch = 1.0;
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-    window.speechSynthesis.speak(utterance);
+  /* Robust TTS — cancels previous utterance, uses token to ignore stale callbacks */
+  const stopSpeaking = useCallback(() => {
+    speakTokenRef.current += 1;
+    if (typeof window !== "undefined") {
+      try {
+        window.speechSynthesis?.cancel();
+      } catch {
+        /* noop */
+      }
+    }
+    utteranceRef.current = null;
+    setIsSpeaking(false);
   }, []);
 
-  const stopSpeaking = useCallback(() => {
-    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
-    setIsSpeaking(false);
+  const speak = useCallback((text: string) => {
+    if (typeof window === "undefined" || !window.speechSynthesis || !text) return;
+    const synth = window.speechSynthesis;
+    // Hard reset — Chrome bug: speechSynthesis "stuck" if previous utterance not cancelled cleanly
+    speakTokenRef.current += 1;
+    const myToken = speakTokenRef.current;
+    try {
+      synth.cancel();
+    } catch {
+      /* noop */
+    }
+
+    const cleanText = text.replace(/[⚠️🔴🍎❤️🥬💧✅😊◉◎◈]/g, "").trim();
+    if (!cleanText) return;
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 0.98;
+    utterance.pitch = 1.05;
+    utterance.volume = 1;
+    const voices = synth.getVoices();
+    const preferred = voices.find((v) => /en[-_](US|GB)/i.test(v.lang) && /female|samantha|google/i.test(v.name))
+      || voices.find((v) => /^en/i.test(v.lang));
+    if (preferred) utterance.voice = preferred;
+
+    utterance.onstart = () => {
+      if (myToken === speakTokenRef.current) setIsSpeaking(true);
+    };
+    utterance.onend = () => {
+      if (myToken === speakTokenRef.current) setIsSpeaking(false);
+    };
+    utterance.onerror = () => {
+      if (myToken === speakTokenRef.current) setIsSpeaking(false);
+    };
+    utteranceRef.current = utterance;
+
+    // Small delay lets cancel() flush in Chrome before speak()
+    setTimeout(() => {
+      if (myToken === speakTokenRef.current) {
+        try {
+          synth.speak(utterance);
+        } catch {
+          setIsSpeaking(false);
+        }
+      }
+    }, 60);
   }, []);
 
   /* Cleanup any ongoing speech on unmount */
   useEffect(() => {
     return () => {
-      if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+      stopSpeaking();
     };
-  }, []);
+  }, [stopSpeaking]);
 
   const toggleMute = () => {
-    if (!isMuted) stopSpeaking();
-    setIsMuted((m) => !m);
+    if (!isMuted) {
+      stopSpeaking();
+      setIsMuted(true);
+    } else {
+      // Prime audio context with a silent utterance (browsers need a user gesture)
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        try {
+          const ping = new SpeechSynthesisUtterance(" ");
+          ping.volume = 0;
+          window.speechSynthesis.speak(ping);
+        } catch {
+          /* noop */
+        }
+      }
+      setIsMuted(false);
+      // Auto-play current message immediately on unmute
+      setTimeout(() => speak(messages[currentMsg] ?? ""), 120);
+    }
+    setSparkBurst((n) => n + 1);
+  };
+
+  const handleReplay = () => {
+    setSparkBurst((n) => n + 1);
+    speak(messages[currentMsg] ?? "");
+  };
+
+  const goToMsg = (i: number) => {
+    setCurrentMsg(i);
+    setSparkBurst((n) => n + 1);
+    if (!isMuted) setTimeout(() => speak(messages[i] ?? ""), 100);
   };
 
   return (
