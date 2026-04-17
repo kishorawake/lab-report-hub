@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { motion, AnimatePresence, useAnimation } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { gsap } from "gsap";
 import {
   ChevronDown,
@@ -142,22 +142,19 @@ const HoloRing = ({ delay = 0 }: { delay?: number }) => (
 /* ─── MAIN COMPONENT ─── */
 const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
   const [mode, setMode] = useState<SummaryMode>("full");
-  const messages = generateMessages(results, mode);
+  const messages = useMemo(() => generateMessages(results, mode), [results, mode]);
   const [currentMsg, setCurrentMsg] = useState(0);
   const [isExpanded, setIsExpanded] = useState(true);
   const [displayedText, setDisplayedText] = useState("");
-  const [isTyping, setIsTyping] = useState(true);
-  const [isMuted, setIsMuted] = useState(false); // Auto-enabled
+  const [isTyping, setIsTyping] = useState(false);
+  // Audio is OPT-IN (muted by default) — auto-play caused page lag and audio bugs.
+  const [isMuted, setIsMuted] = useState(true);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showSubtitles, setShowSubtitles] = useState(true);
   const [isProjected, setIsProjected] = useState(false);
-  const [isAutoPlaying, setIsAutoPlaying] = useState(true);
 
-  const synthRef = useRef<SpeechSynthesisUtterance | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const avatarRef = useRef<HTMLDivElement>(null);
-  const glowControls = useAnimation();
-  const autoPlayRef = useRef(true);
 
   /* Projection animation on mount */
   useEffect(() => {
@@ -183,126 +180,41 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
   /* Reset msg index on mode change */
   useEffect(() => setCurrentMsg(0), [mode]);
 
-  /* Typewriter */
+  /* Show full message instantly (typewriter removed — was a CPU hog on mobile) */
   useEffect(() => {
-    setDisplayedText("");
-    setIsTyping(true);
-    const text = messages[currentMsg];
-    let i = 0;
-    const interval = setInterval(() => {
-      if (i < text.length) {
-        setDisplayedText(text.slice(0, i + 1));
-        i++;
-      } else {
-        setIsTyping(false);
-        clearInterval(interval);
-      }
-    }, 16);
-    return () => clearInterval(interval);
-  }, [currentMsg, mode]);
+    setDisplayedText(messages[currentMsg] ?? "");
+    setIsTyping(false);
+  }, [currentMsg, messages]);
 
-  /* TTS with auto-advance callback */
-  const speak = useCallback((text: string, onEndCallback?: () => void) => {
+  /* Manual TTS — only fires when user clicks Replay */
+  const speak = useCallback((text: string) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text.replace(/[⚠️🔴🍎❤️🥬💧✅😊]/g, ""));
     utterance.rate = 0.95;
     utterance.pitch = 1.0;
     utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => {
-      setIsSpeaking(false);
-      onEndCallback?.();
-    };
-    utterance.onerror = () => {
-      setIsSpeaking(false);
-      onEndCallback?.();
-    };
-    synthRef.current = utterance;
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
     window.speechSynthesis.speak(utterance);
   }, []);
 
   const stopSpeaking = useCallback(() => {
-    window.speechSynthesis?.cancel();
+    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     setIsSpeaking(false);
-    setIsAutoPlaying(false);
-    autoPlayRef.current = false;
   }, []);
 
-  /* Auto-play: advance through messages, then switch modes */
-  const modeOrder: SummaryMode[] = ["full", "critical", "lifestyle"];
-
-  const advanceAutoPlay = useCallback(() => {
-    if (!autoPlayRef.current) return;
-
-    setCurrentMsg((prev) => {
-      // We need to read current mode and messages length
-      return prev; // handled below
-    });
-  }, []);
-
+  /* Cleanup any ongoing speech on unmount */
   useEffect(() => {
-    if (!isAutoPlaying || isMuted || isTyping) return;
-
-    const currentMessages = messages;
-    const advanceAfterSpeak = () => {
-      if (!autoPlayRef.current) return;
-
-      const nextMsg = currentMsg + 1;
-      if (nextMsg < currentMessages.length) {
-        // More messages in current mode
-        setTimeout(() => {
-          if (autoPlayRef.current) setCurrentMsg(nextMsg);
-        }, 500);
-      } else {
-        // Switch to next mode
-        const currentModeIndex = modeOrder.indexOf(mode);
-        const nextModeIndex = currentModeIndex + 1;
-        if (nextModeIndex < modeOrder.length) {
-          setTimeout(() => {
-            if (autoPlayRef.current) {
-              setMode(modeOrder[nextModeIndex]);
-              // currentMsg will reset to 0 via the mode change effect
-            }
-          }, 800);
-        } else {
-          // All done
-          setIsAutoPlaying(false);
-          autoPlayRef.current = false;
-        }
-      }
+    return () => {
+      if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     };
-
-    speak(currentMessages[currentMsg], advanceAfterSpeak);
-    return () => { window.speechSynthesis?.cancel(); };
-  }, [currentMsg, isTyping, isMuted, isAutoPlaying, mode]);
+  }, []);
 
   const toggleMute = () => {
-    if (!isMuted) {
-      stopSpeaking();
-    } else {
-      // Re-enable: restart auto-play from current position
-      setIsAutoPlaying(true);
-      autoPlayRef.current = true;
-    }
-    setIsMuted(!isMuted);
+    if (!isMuted) stopSpeaking();
+    setIsMuted((m) => !m);
   };
-
-  /* Dashboard highlight effect */
-  useEffect(() => {
-    if (!isSpeaking) return;
-    const panels = document.querySelectorAll("[data-panel-card]");
-    if (panels.length === 0) return;
-
-    const currentPanel = panels[currentMsg % panels.length] as HTMLElement;
-    if (!currentPanel) return;
-
-    currentPanel.classList.add("holo-highlight-pulse");
-    const cleanup = setTimeout(() => currentPanel.classList.remove("holo-highlight-pulse"), 4000);
-    return () => {
-      clearTimeout(cleanup);
-      currentPanel.classList.remove("holo-highlight-pulse");
-    };
-  }, [currentMsg, isSpeaking]);
 
   return (
     <motion.div
@@ -310,7 +222,7 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
       initial={{ opacity: 0, x: -40 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
-      className="sticky top-24 holo-container"
+      className="lg:sticky lg:top-24 holo-container"
     >
       {/* ─── Hologram Card ─── */}
       <div className="relative rounded-2xl overflow-hidden holo-glow">
@@ -590,31 +502,6 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
         </div>
       </motion.div>
 
-      {/* ─── AI Network Video ─── */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 1.4 }}
-        className="mt-3 rounded-xl overflow-hidden relative holo-glow"
-      >
-        <div className="holo-scanlines rounded-xl" style={{ opacity: 0.2 }} />
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          className="w-full h-auto rounded-xl opacity-70"
-          style={{
-            filter: "hue-rotate(180deg) saturate(1.5)",
-            mixBlendMode: "screen",
-          }}
-        >
-          <source src="/ai-network-bg.mp4" type="video/mp4" />
-        </video>
-        <div className="absolute bottom-1 right-2 text-[7px] text-holo/30 font-mono">
-          AI Neural Network Visualization
-        </div>
-      </motion.div>
     </motion.div>
   );
 };
