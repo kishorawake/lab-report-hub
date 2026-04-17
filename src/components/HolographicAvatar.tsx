@@ -146,20 +146,32 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
   const [currentMsg, setCurrentMsg] = useState(0);
   const [isExpanded, setIsExpanded] = useState(true);
   const [displayedText, setDisplayedText] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  // Audio is OPT-IN (muted by default) — auto-play caused page lag and audio bugs.
+  // Audio is OPT-IN (muted by default). Toggling unmute primes the speech engine.
   const [isMuted, setIsMuted] = useState(true);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showSubtitles, setShowSubtitles] = useState(true);
   const [isProjected, setIsProjected] = useState(false);
+  const [sparkBurst, setSparkBurst] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const avatarRef = useRef<HTMLDivElement>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const speakTokenRef = useRef(0);
 
   /* Projection animation on mount */
   useEffect(() => {
     const timer = setTimeout(() => setIsProjected(true), 300);
     return () => clearTimeout(timer);
+  }, []);
+
+  /* Preload voices (Chrome loads them asynchronously — first call often fails silently) */
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const synth = window.speechSynthesis;
+    const prime = () => synth.getVoices();
+    prime();
+    synth.addEventListener?.("voiceschanged", prime);
+    return () => synth.removeEventListener?.("voiceschanged", prime);
   }, []);
 
   /* GSAP glow pulse on avatar */
@@ -180,40 +192,110 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
   /* Reset msg index on mode change */
   useEffect(() => setCurrentMsg(0), [mode]);
 
-  /* Show full message instantly (typewriter removed — was a CPU hog on mobile) */
+  /* Show full message instantly */
   useEffect(() => {
     setDisplayedText(messages[currentMsg] ?? "");
-    setIsTyping(false);
   }, [currentMsg, messages]);
 
-  /* Manual TTS — only fires when user clicks Replay */
-  const speak = useCallback((text: string) => {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text.replace(/[⚠️🔴🍎❤️🥬💧✅😊]/g, ""));
-    utterance.rate = 0.95;
-    utterance.pitch = 1.0;
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-    window.speechSynthesis.speak(utterance);
+  /* Robust TTS — cancels previous utterance, uses token to ignore stale callbacks */
+  const stopSpeaking = useCallback(() => {
+    speakTokenRef.current += 1;
+    if (typeof window !== "undefined") {
+      try {
+        window.speechSynthesis?.cancel();
+      } catch {
+        /* noop */
+      }
+    }
+    utteranceRef.current = null;
+    setIsSpeaking(false);
   }, []);
 
-  const stopSpeaking = useCallback(() => {
-    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
-    setIsSpeaking(false);
+  const speak = useCallback((text: string) => {
+    if (typeof window === "undefined" || !window.speechSynthesis || !text) return;
+    const synth = window.speechSynthesis;
+    // Hard reset — Chrome bug: speechSynthesis "stuck" if previous utterance not cancelled cleanly
+    speakTokenRef.current += 1;
+    const myToken = speakTokenRef.current;
+    try {
+      synth.cancel();
+    } catch {
+      /* noop */
+    }
+
+    const cleanText = text.replace(/[⚠️🔴🍎❤️🥬💧✅😊◉◎◈]/g, "").trim();
+    if (!cleanText) return;
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 0.98;
+    utterance.pitch = 1.05;
+    utterance.volume = 1;
+    const voices = synth.getVoices();
+    const preferred = voices.find((v) => /en[-_](US|GB)/i.test(v.lang) && /female|samantha|google/i.test(v.name))
+      || voices.find((v) => /^en/i.test(v.lang));
+    if (preferred) utterance.voice = preferred;
+
+    utterance.onstart = () => {
+      if (myToken === speakTokenRef.current) setIsSpeaking(true);
+    };
+    utterance.onend = () => {
+      if (myToken === speakTokenRef.current) setIsSpeaking(false);
+    };
+    utterance.onerror = () => {
+      if (myToken === speakTokenRef.current) setIsSpeaking(false);
+    };
+    utteranceRef.current = utterance;
+
+    // Small delay lets cancel() flush in Chrome before speak()
+    setTimeout(() => {
+      if (myToken === speakTokenRef.current) {
+        try {
+          synth.speak(utterance);
+        } catch {
+          setIsSpeaking(false);
+        }
+      }
+    }, 60);
   }, []);
 
   /* Cleanup any ongoing speech on unmount */
   useEffect(() => {
     return () => {
-      if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+      stopSpeaking();
     };
-  }, []);
+  }, [stopSpeaking]);
 
   const toggleMute = () => {
-    if (!isMuted) stopSpeaking();
-    setIsMuted((m) => !m);
+    if (!isMuted) {
+      stopSpeaking();
+      setIsMuted(true);
+    } else {
+      // Prime audio context with a silent utterance (browsers need a user gesture)
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        try {
+          const ping = new SpeechSynthesisUtterance(" ");
+          ping.volume = 0;
+          window.speechSynthesis.speak(ping);
+        } catch {
+          /* noop */
+        }
+      }
+      setIsMuted(false);
+      // Auto-play current message immediately on unmute
+      setTimeout(() => speak(messages[currentMsg] ?? ""), 120);
+    }
+    setSparkBurst((n) => n + 1);
+  };
+
+  const handleReplay = () => {
+    setSparkBurst((n) => n + 1);
+    speak(messages[currentMsg] ?? "");
+  };
+
+  const goToMsg = (i: number) => {
+    setCurrentMsg(i);
+    setSparkBurst((n) => n + 1);
+    if (!isMuted) setTimeout(() => speak(messages[i] ?? ""), 100);
   };
 
   return (
@@ -363,23 +445,55 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
                   })}
                 </div>
 
-                {/* Subtitle / Chat Bubble */}
+                {/* Subtitle / Chat Bubble — animated gradient sweep + sparkle burst */}
                 <motion.div
                   key={`${mode}-${currentMsg}`}
-                  initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
-                  className="holo-subtitle-bar rounded-xl rounded-tl-sm p-3.5 mb-3"
+                  initial={{ opacity: 0, y: 8, scale: 0.96, filter: "blur(4px)" }}
+                  animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+                  transition={{ duration: 0.4, ease: "easeOut" }}
+                  className="relative holo-subtitle-bar rounded-xl rounded-tl-sm p-3.5 mb-3 overflow-hidden"
                 >
+                  <motion.div
+                    aria-hidden
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      background:
+                        "linear-gradient(110deg, transparent 30%, hsl(185 85% 60% / 0.18) 50%, transparent 70%)",
+                    }}
+                    animate={{ x: ["-100%", "120%"] }}
+                    transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut", repeatDelay: 1.2 }}
+                  />
+                  <AnimatePresence>
+                    {[...Array(6)].map((_, i) => (
+                      <motion.span
+                        key={`spark-${sparkBurst}-${i}`}
+                        className="absolute w-1 h-1 rounded-full bg-holo pointer-events-none"
+                        style={{ left: `${20 + i * 12}%`, top: "50%" }}
+                        initial={{ opacity: 0, scale: 0, y: 0 }}
+                        animate={{
+                          opacity: [0, 1, 0],
+                          scale: [0, 1.4, 0],
+                          y: [0, -16 - i * 2, -28],
+                          x: [(i - 3) * 4, (i - 3) * 8],
+                        }}
+                        transition={{ duration: 0.9, delay: i * 0.04, ease: "easeOut" }}
+                      />
+                    ))}
+                  </AnimatePresence>
                   {showSubtitles && (
-                    <p className="text-xs text-holo/90 leading-relaxed min-h-[3rem] font-light">
+                    <p className="relative text-xs text-holo/90 leading-relaxed min-h-[3rem] font-light">
                       {displayedText}
-                      {isTyping && (
-                        <motion.span
-                          animate={{ opacity: [1, 0] }}
-                          transition={{ duration: 0.4, repeat: Infinity }}
-                          className="inline-block w-0.5 h-3.5 bg-holo ml-0.5 align-middle"
-                        />
+                      {isSpeaking && (
+                        <span className="inline-flex gap-0.5 ml-1.5 align-middle">
+                          {[0, 1, 2].map((i) => (
+                            <motion.span
+                              key={i}
+                              className="inline-block w-1 h-1 rounded-full bg-holo"
+                              animate={{ y: [0, -3, 0], opacity: [0.4, 1, 0.4] }}
+                              transition={{ duration: 0.7, repeat: Infinity, delay: i * 0.12 }}
+                            />
+                          ))}
+                        </span>
                       )}
                     </p>
                   )}
@@ -389,9 +503,11 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
                 <div className="flex items-center justify-between">
                   <div className="flex gap-1.5">
                     {messages.map((_, i) => (
-                      <button
+                      <motion.button
                         key={i}
-                        onClick={() => setCurrentMsg(i)}
+                        onClick={() => goToMsg(i)}
+                        whileHover={{ scale: 1.3 }}
+                        whileTap={{ scale: 0.85 }}
                         className={`h-1.5 rounded-full transition-all duration-300 ${
                           i === currentMsg
                             ? "w-5 bg-holo shadow-[0_0_8px_hsl(185_85%_60%/0.5)]"
@@ -401,29 +517,34 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
                     ))}
                   </div>
                   <div className="flex gap-1">
-                    {!isMuted && (
-                      <button
-                        onClick={() => speak(messages[currentMsg])}
-                        className="text-[10px] px-2 py-0.5 rounded-md bg-holo/10 hover:bg-holo/20 text-holo transition-colors flex items-center gap-1"
-                      >
-                        <Play className="w-2.5 h-2.5" />
-                        Replay
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setCurrentMsg(Math.max(0, currentMsg - 1))}
+                    <motion.button
+                      onClick={handleReplay}
+                      whileHover={{ scale: 1.08 }}
+                      whileTap={{ scale: 0.92 }}
+                      className="text-[10px] px-2 py-0.5 rounded-md bg-holo/10 hover:bg-holo/20 text-holo transition-colors flex items-center gap-1"
+                      title={isMuted ? "Unmute first to hear audio" : "Replay narration"}
+                    >
+                      <Play className="w-2.5 h-2.5" />
+                      Replay
+                    </motion.button>
+                    <motion.button
+                      onClick={() => goToMsg(Math.max(0, currentMsg - 1))}
                       disabled={currentMsg === 0}
+                      whileHover={{ scale: 1.08, x: -2 }}
+                      whileTap={{ scale: 0.92 }}
                       className="text-[10px] px-2 py-0.5 rounded-md bg-holo/5 hover:bg-holo/10 text-holo/60 disabled:opacity-30 transition-colors"
                     >
                       Prev
-                    </button>
-                    <button
-                      onClick={() => setCurrentMsg(Math.min(messages.length - 1, currentMsg + 1))}
+                    </motion.button>
+                    <motion.button
+                      onClick={() => goToMsg(Math.min(messages.length - 1, currentMsg + 1))}
                       disabled={currentMsg === messages.length - 1}
+                      whileHover={{ scale: 1.08, x: 2 }}
+                      whileTap={{ scale: 0.92 }}
                       className="text-[10px] px-2 py-0.5 rounded-md bg-holo/10 hover:bg-holo/20 text-holo disabled:opacity-30 transition-colors"
                     >
                       Next
-                    </button>
+                    </motion.button>
                   </div>
                 </div>
 
