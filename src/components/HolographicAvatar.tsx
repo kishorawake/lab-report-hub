@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { motion, AnimatePresence, useAnimation } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { gsap } from "gsap";
 import {
   ChevronDown,
@@ -222,7 +222,7 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
       initial={{ opacity: 0, x: -40 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
-      className="sticky top-24 holo-container"
+      className="lg:sticky lg:top-24 holo-container"
     >
       {/* ─── Hologram Card ─── */}
       <div className="relative rounded-2xl overflow-hidden holo-glow">
