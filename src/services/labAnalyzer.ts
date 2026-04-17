@@ -391,6 +391,82 @@ function getClinicalCorrelation(testName: string, status: TestStatus): ClinicalC
   };
 }
 
+// Verified clinical references (Mayo Clinic, NIH MedlinePlus, CDC, AHA, NHS)
+const clinicalReferences: Record<string, ClinicalReference[]> = {
+  "HbA1c": [
+    { label: "A1C Test — diabetes diagnosis & management", url: "https://www.cdc.gov/diabetes/diabetes-testing/prediabetes-a1c-test.html", source: "CDC" },
+    { label: "A1C Test — overview", url: "https://medlineplus.gov/lab-tests/hba1c-test/", source: "NIH MedlinePlus" },
+    { label: "Diabetes — symptoms & causes", url: "https://www.mayoclinic.org/diseases-conditions/diabetes/symptoms-causes/syc-20371444", source: "Mayo Clinic" },
+  ],
+  "Random Blood Sugar": [
+    { label: "Blood Glucose Test", url: "https://medlineplus.gov/lab-tests/blood-glucose-test/", source: "NIH MedlinePlus" },
+    { label: "Manage Blood Sugar", url: "https://www.cdc.gov/diabetes/treatment/index.html", source: "CDC" },
+  ],
+  "LDL Cholesterol": [
+    { label: "LDL & HDL Cholesterol", url: "https://www.cdc.gov/cholesterol/about/ldl-and-hdl-cholesterol-and-triglycerides.html", source: "CDC" },
+    { label: "Prevention & Treatment of High Cholesterol", url: "https://www.heart.org/en/health-topics/cholesterol/prevention-and-treatment-of-high-cholesterol-hyperlipidemia", source: "American Heart Association" },
+    { label: "High cholesterol — diagnosis & treatment", url: "https://www.mayoclinic.org/diseases-conditions/high-blood-cholesterol/diagnosis-treatment/drc-20350806", source: "Mayo Clinic" },
+  ],
+  "Non-HDL Cholesterol": [
+    { label: "Cholesterol Levels", url: "https://medlineplus.gov/cholesterollevelswhatyouneedtoknow.html", source: "NIH MedlinePlus" },
+    { label: "Healthy Eating to Lower Cholesterol", url: "https://www.heart.org/en/healthy-living/healthy-eating", source: "American Heart Association" },
+  ],
+  "Iron": [
+    { label: "Iron Deficiency Anemia", url: "https://www.mayoclinic.org/diseases-conditions/iron-deficiency-anemia/symptoms-causes/syc-20355034", source: "Mayo Clinic" },
+    { label: "Iron — Health Professional Fact Sheet", url: "https://ods.od.nih.gov/factsheets/Iron-HealthProfessional/", source: "NIH ODS" },
+  ],
+  "Ferritin": [
+    { label: "Ferritin Test", url: "https://medlineplus.gov/lab-tests/ferritin-blood-test/", source: "NIH MedlinePlus" },
+    { label: "Ferritin Test — Mayo Clinic", url: "https://www.mayoclinic.org/tests-procedures/ferritin-test/about/pac-20384928", source: "Mayo Clinic" },
+  ],
+  "MCH": [
+    { label: "MCH Blood Test", url: "https://medlineplus.gov/lab-tests/mch-blood-test/", source: "NIH MedlinePlus" },
+    { label: "Anemia — symptoms & causes", url: "https://www.mayoclinic.org/diseases-conditions/anemia/symptoms-causes/syc-20351360", source: "Mayo Clinic" },
+  ],
+  "MCHC": [
+    { label: "MCHC Blood Test", url: "https://medlineplus.gov/lab-tests/mchc-blood-test/", source: "NIH MedlinePlus" },
+  ],
+  "Neutrophils": [
+    { label: "WBC Differential", url: "https://medlineplus.gov/lab-tests/blood-differential-test/", source: "NIH MedlinePlus" },
+  ],
+  "Alkaline Phosphatase": [
+    { label: "ALP Test", url: "https://medlineplus.gov/lab-tests/alkaline-phosphatase/", source: "NIH MedlinePlus" },
+    { label: "Liver function tests", url: "https://www.mayoclinic.org/tests-procedures/liver-function-tests/about/pac-20394595", source: "Mayo Clinic" },
+  ],
+  "CRP": [
+    { label: "C-Reactive Protein (CRP) Test", url: "https://medlineplus.gov/lab-tests/c-reactive-protein-crp-test/", source: "NIH MedlinePlus" },
+    { label: "CRP test — Mayo Clinic", url: "https://www.mayoclinic.org/tests-procedures/c-reactive-protein-test/about/pac-20385228", source: "Mayo Clinic" },
+  ],
+  "Sodium": [
+    { label: "Sodium Blood Test", url: "https://medlineplus.gov/lab-tests/sodium-blood-test/", source: "NIH MedlinePlus" },
+    { label: "Hyponatremia", url: "https://www.mayoclinic.org/diseases-conditions/hyponatremia/symptoms-causes/syc-20373711", source: "Mayo Clinic" },
+  ],
+  "Potassium": [
+    { label: "Potassium Blood Test", url: "https://medlineplus.gov/lab-tests/potassium-blood-test/", source: "NIH MedlinePlus" },
+    { label: "Hyperkalemia (high potassium)", url: "https://www.heart.org/en/health-topics/heart-failure/treatment-options-for-heart-failure/hyperkalemia-high-potassium", source: "American Heart Association" },
+  ],
+  "Chloride": [
+    { label: "Chloride Blood Test", url: "https://medlineplus.gov/lab-tests/chloride-blood-test/", source: "NIH MedlinePlus" },
+  ],
+  "Calcium": [
+    { label: "Calcium Blood Test", url: "https://medlineplus.gov/lab-tests/calcium-blood-test/", source: "NIH MedlinePlus" },
+    { label: "Hypocalcemia & Hypercalcemia", url: "https://www.mayoclinic.org/diseases-conditions/hypercalcemia/symptoms-causes/syc-20355523", source: "Mayo Clinic" },
+  ],
+  "Platelet Count": [
+    { label: "Platelet Tests", url: "https://medlineplus.gov/lab-tests/platelet-tests/", source: "NIH MedlinePlus" },
+    { label: "Thrombocytopenia (low platelets)", url: "https://www.mayoclinic.org/diseases-conditions/thrombocytopenia/symptoms-causes/syc-20378293", source: "Mayo Clinic" },
+  ],
+};
+
+const defaultReferences: ClinicalReference[] = [
+  { label: "Understanding Lab Test Results", url: "https://medlineplus.gov/laboratorytests.html", source: "NIH MedlinePlus" },
+  { label: "Lab tests overview", url: "https://www.mayoclinic.org/tests-procedures", source: "Mayo Clinic" },
+];
+
+function getClinicalReferences(testName: string): ClinicalReference[] {
+  return clinicalReferences[testName] || defaultReferences;
+}
+
 function generateAIReport(tests: LabTest[], panels: PanelSummary[]): {
   overallSummary: string;
   abnormalFindings: AbnormalFinding[];
@@ -411,6 +487,7 @@ function generateAIReport(tests: LabTest[], panels: PanelSummary[]): {
       possibleCauses: correlation.possibleCauses,
       consequences: correlation.consequences,
       reductionTips: correlation.reductionTips,
+      references: getClinicalReferences(t.name),
     };
   });
 
