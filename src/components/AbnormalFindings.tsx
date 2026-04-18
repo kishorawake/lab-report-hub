@@ -159,6 +159,9 @@ const FindingDetail = ({ finding }: { finding: AbnormalFinding }) => {
 };
 
 const AbnormalFindings = ({ findings }: AbnormalFindingsProps) => {
+  const { lang } = useLang();
+  const tHeader = useTranslated("Abnormal Findings — AI Clinical Analysis", lang);
+  const tHelp = useTranslated("Click on each finding to see AI-generated correlations, consequences, and lifestyle tips.", lang);
   if (findings.length === 0) return null;
 
   return (
@@ -174,13 +177,13 @@ const AbnormalFindings = ({ findings }: AbnormalFindingsProps) => {
         <div className="w-8 h-8 rounded-lg bg-status-attention/10 flex items-center justify-center">
           <AlertTriangle className="w-4 h-4 text-status-attention" />
         </div>
-        Abnormal Findings — AI Clinical Analysis
+        {tHeader}
         <span className="text-xs px-2 py-0.5 rounded-full bg-status-attention/10 text-status-attention font-medium">
           {findings.length}
         </span>
       </h3>
       <p className="text-xs text-muted-foreground mb-4 relative z-10">
-        Click on each finding to see AI-generated correlations, consequences, and lifestyle tips.
+        {tHelp}
       </p>
       <div className="space-y-3 relative z-10">
         {findings.map((finding, i) => (

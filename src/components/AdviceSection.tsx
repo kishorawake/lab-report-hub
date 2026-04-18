@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
 import { Lightbulb, Stethoscope, MessageSquare, ChevronRight } from "lucide-react";
 import type { RecommendedAction } from "@/services/labAnalyzer";
+import { useLang } from "@/contexts/LangContext";
+import { useTranslated, useTranslatedList } from "@/services/translate";
 
 interface AdviceSectionProps {
   practicalAdvice: string[];
@@ -10,6 +12,17 @@ interface AdviceSectionProps {
 }
 
 const AdviceSection = ({ practicalAdvice, recommendedActions, whenToConsultDoctor, talkingPoints }: AdviceSectionProps) => {
+  const { lang } = useLang();
+  const tPractical = useTranslated("Practical Advice", lang);
+  const tRecommended = useTranslated("Recommended Actions", lang);
+  const tWhen = useTranslated("When to Consult Doctor", lang);
+  const tDiscuss = useTranslated("Discuss with Your Doctor", lang);
+  const tWhenText = useTranslated(whenToConsultDoctor, lang);
+  const tAdviceList = useTranslatedList(practicalAdvice, lang);
+  const tTalking = useTranslatedList(talkingPoints, lang);
+  const actionTitles = useTranslatedList(recommendedActions.map((a) => a.title), lang);
+  const actionDescs = useTranslatedList(recommendedActions.map((a) => a.description), lang);
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {/* Practical Advice */}
@@ -23,10 +36,10 @@ const AdviceSection = ({ practicalAdvice, recommendedActions, whenToConsultDocto
           <div className="w-7 h-7 rounded-lg bg-status-attention/10 flex items-center justify-center">
             <Lightbulb className="w-3.5 h-3.5 text-status-attention" />
           </div>
-          Practical Advice
+          {tPractical}
         </h3>
         <ul className="space-y-2">
-          {practicalAdvice.map((advice, i) => (
+          {tAdviceList.map((advice, i) => (
             <motion.li
               key={i}
               initial={{ opacity: 0, x: -10 }}
@@ -48,7 +61,7 @@ const AdviceSection = ({ practicalAdvice, recommendedActions, whenToConsultDocto
         transition={{ delay: 0.4 }}
         className="panel-card p-5 gradient-border"
       >
-        <h3 className="font-display text-base font-semibold text-foreground mb-3">Recommended Actions</h3>
+        <h3 className="font-display text-base font-semibold text-foreground mb-3">{tRecommended}</h3>
         <div className="space-y-3">
           {recommendedActions.map((action, i) => (
             <motion.div
@@ -66,8 +79,8 @@ const AdviceSection = ({ practicalAdvice, recommendedActions, whenToConsultDocto
                 <span className="text-xs font-bold text-primary-foreground">{action.step}</span>
               </motion.div>
               <div>
-                <h4 className="font-display font-semibold text-xs text-foreground">{action.title}</h4>
-                <p className="text-xs text-foreground/70 mt-0.5 leading-relaxed">{action.description}</p>
+                <h4 className="font-display font-semibold text-xs text-foreground">{actionTitles[i] ?? action.title}</h4>
+                <p className="text-xs text-foreground/70 mt-0.5 leading-relaxed">{actionDescs[i] ?? action.description}</p>
               </div>
             </motion.div>
           ))}
@@ -87,9 +100,9 @@ const AdviceSection = ({ practicalAdvice, recommendedActions, whenToConsultDocto
           <div className="w-7 h-7 rounded-lg bg-status-critical/10 flex items-center justify-center">
             <Stethoscope className="w-3.5 h-3.5 text-status-critical" />
           </div>
-          When to Consult Doctor
+          {tWhen}
         </h3>
-        <p className="text-xs text-foreground/80 leading-relaxed relative z-10">{whenToConsultDoctor}</p>
+        <p className="text-xs text-foreground/80 leading-relaxed relative z-10">{tWhenText}</p>
       </motion.div>
 
       {/* Talking Points */}
@@ -103,10 +116,10 @@ const AdviceSection = ({ practicalAdvice, recommendedActions, whenToConsultDocto
           <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
             <MessageSquare className="w-3.5 h-3.5 text-primary" />
           </div>
-          Discuss with Your Doctor
+          {tDiscuss}
         </h3>
         <ol className="space-y-2">
-          {talkingPoints.map((point, i) => (
+          {tTalking.map((point, i) => (
             <motion.li
               key={i}
               initial={{ opacity: 0, x: -10 }}
