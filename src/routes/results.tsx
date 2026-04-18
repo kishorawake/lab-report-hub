@@ -12,6 +12,8 @@ import AbnormalFindings from "@/components/AbnormalFindings";
 import AdviceSection from "@/components/AdviceSection";
 import PrivacyBadges from "@/components/PrivacyBadges";
 import HolographicAvatar from "@/components/HolographicAvatar";
+import { LangProvider, useLang } from "@/contexts/LangContext";
+import { useTranslated } from "@/services/translate";
 
 export const Route = createFileRoute("/results")({
   component: ResultsPage,
@@ -37,8 +39,25 @@ const fadeUp = {
 };
 
 function ResultsPage() {
+  return (
+    <LangProvider>
+      <ResultsPageInner />
+    </LangProvider>
+  );
+}
+
+function ResultsPageInner() {
   const navigate = useNavigate();
   const [results, setResults] = useState<AnalysisResult | null>(null);
+  const { lang } = useLang();
+
+  const tBack = useTranslated("Back", lang);
+  const tTitle = useTranslated("Your Lab Report Analysis", lang);
+  const tPrint = useTranslated("Print Report", lang);
+  const tPanels = useTranslated("Test Panels Detected", lang);
+  const tAnalyze = useTranslated("Analyze Another", lang);
+  const tUpload = useTranslated("Upload a new lab report for instant AI insights.", lang);
+  const tNew = useTranslated("New Report", lang);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("labResults");
