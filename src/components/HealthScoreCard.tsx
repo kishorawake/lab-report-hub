@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
 import { CheckCircle, AlertTriangle, XCircle, TrendingUp, Heart } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
+import { useLang } from "@/contexts/LangContext";
+import { useTranslated } from "@/services/translate";
 
 interface HealthScoreCardProps {
   score: number;
@@ -31,6 +33,11 @@ const AnimatedCounter = ({ target, delay = 0 }: { target: number; delay?: number
 };
 
 const HealthScoreCard = ({ score, grade, optimal, attention, critical }: HealthScoreCardProps) => {
+  const { lang } = useLang();
+  const tHealth = useTranslated("Health Score", lang);
+  const tOptimal = useTranslated("Optimal", lang);
+  const tAttention = useTranslated("Attention", lang);
+  const tCritical = useTranslated("Critical", lang);
   const radius = 52;
   const circumference = 2 * Math.PI * radius;
   const normalizedScore = Math.max(0, Math.min(100, score));
@@ -91,7 +98,7 @@ const HealthScoreCard = ({ score, grade, optimal, attention, critical }: HealthS
         >
           <Heart className="w-4 h-4 text-primary" fill="currentColor" />
         </motion.div>
-        <h3 className="font-display text-base font-semibold text-foreground">Health Score</h3>
+        <h3 className="font-display text-base font-semibold text-foreground">{tHealth}</h3>
       </div>
 
       <div className="flex items-center gap-6 relative z-10">
@@ -173,9 +180,9 @@ const HealthScoreCard = ({ score, grade, optimal, attention, critical }: HealthS
         {/* Breakdown stats */}
         <div className="flex flex-col gap-2 flex-1">
           {[
-            { icon: CheckCircle, color: "text-status-normal", bg: "bg-status-normal/10", border: "border-status-normal/20", count: optimal, label: "Optimal" },
-            { icon: AlertTriangle, color: "text-status-attention", bg: "bg-status-attention/10", border: "border-status-attention/20", count: attention, label: "Attention" },
-            { icon: XCircle, color: "text-status-critical", bg: "bg-status-critical/10", border: "border-status-critical/20", count: critical, label: "Critical" },
+            { icon: CheckCircle, color: "text-status-normal", bg: "bg-status-normal/10", border: "border-status-normal/20", count: optimal, label: tOptimal },
+            { icon: AlertTriangle, color: "text-status-attention", bg: "bg-status-attention/10", border: "border-status-attention/20", count: attention, label: tAttention },
+            { icon: XCircle, color: "text-status-critical", bg: "bg-status-critical/10", border: "border-status-critical/20", count: critical, label: tCritical },
           ].map(({ icon: Icon, color, bg, border, count, label }, i) => (
             <motion.div
               key={label}

@@ -12,6 +12,8 @@ import AbnormalFindings from "@/components/AbnormalFindings";
 import AdviceSection from "@/components/AdviceSection";
 import PrivacyBadges from "@/components/PrivacyBadges";
 import HolographicAvatar from "@/components/HolographicAvatar";
+import { LangProvider, useLang } from "@/contexts/LangContext";
+import { useTranslated } from "@/services/translate";
 
 export const Route = createFileRoute("/results")({
   component: ResultsPage,
@@ -37,8 +39,25 @@ const fadeUp = {
 };
 
 function ResultsPage() {
+  return (
+    <LangProvider>
+      <ResultsPageInner />
+    </LangProvider>
+  );
+}
+
+function ResultsPageInner() {
   const navigate = useNavigate();
   const [results, setResults] = useState<AnalysisResult | null>(null);
+  const { lang } = useLang();
+
+  const tBack = useTranslated("Back", lang);
+  const tTitle = useTranslated("Your Lab Report Analysis", lang);
+  const tPrint = useTranslated("Print Report", lang);
+  const tPanels = useTranslated("Test Panels Detected", lang);
+  const tAnalyze = useTranslated("Analyze Another", lang);
+  const tUpload = useTranslated("Upload a new lab report for instant AI insights.", lang);
+  const tNew = useTranslated("New Report", lang);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("labResults");
@@ -100,10 +119,10 @@ function ResultsPage() {
               onClick={() => navigate({ to: "/" })}
               className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-1.5 group"
             >
-              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Back
+              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> {tBack}
             </button>
             <h1 className="font-display text-xl sm:text-2xl md:text-3xl font-bold text-foreground flex items-center gap-2 flex-wrap">
-              Your Lab Report Analysis
+              {tTitle}
               <Sparkles className="w-5 h-5 text-primary" />
             </h1>
           </div>
@@ -114,7 +133,7 @@ function ResultsPage() {
             className="hidden md:flex items-center gap-2 hover:shadow-card transition-shadow shrink-0"
           >
             <Download className="w-4 h-4" />
-            Print Report
+            {tPrint}
           </Button>
         </motion.div>
 
@@ -153,7 +172,7 @@ function ResultsPage() {
             <motion.div variants={fadeUp}>
               <h2 className="font-display text-base sm:text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
                 <span className="w-1 h-5 rounded-full hero-gradient inline-block" />
-                Test Panels Detected
+                {tPanels}
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {results.panels.map((panel, i) => (
@@ -183,12 +202,12 @@ function ResultsPage() {
                 whileHover={{ y: -2, transition: { duration: 0.2 } }}
                 className="panel-card p-6 flex flex-col items-center justify-center text-center shimmer"
               >
-                <h3 className="font-display text-base font-semibold text-foreground mb-2">Analyze Another</h3>
+                <h3 className="font-display text-base font-semibold text-foreground mb-2">{tAnalyze}</h3>
                 <p className="text-xs text-muted-foreground mb-3">
-                  Upload a new lab report for instant AI insights.
+                  {tUpload}
                 </p>
                 <Button onClick={() => navigate({ to: "/" })} size="sm" className="shadow-hero hover:shadow-glow transition-shadow">
-                  New Report
+                  {tNew}
                 </Button>
               </motion.div>
             </motion.div>

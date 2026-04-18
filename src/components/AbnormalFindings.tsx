@@ -2,6 +2,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, XCircle, ChevronDown, ChevronUp, Lightbulb, TrendingDown, Search, ExternalLink, BookOpen } from "lucide-react";
 import { useState } from "react";
 import type { AbnormalFinding } from "@/services/labAnalyzer";
+import { useLang } from "@/contexts/LangContext";
+import { useTranslated, useTranslatedList } from "@/services/translate";
 
 interface AbnormalFindingsProps {
   findings: AbnormalFinding[];
@@ -10,6 +12,15 @@ interface AbnormalFindingsProps {
 const FindingDetail = ({ finding }: { finding: AbnormalFinding }) => {
   const [expanded, setExpanded] = useState(false);
   const isCritical = finding.status.includes("critical");
+  const { lang } = useLang();
+  const tExplanation = useTranslated(finding.explanation, lang);
+  const tCauses = useTranslatedList(finding.possibleCauses, lang);
+  const tConsequences = useTranslatedList(finding.consequences, lang);
+  const tTips = useTranslatedList(finding.reductionTips, lang);
+  const tWhy = useTranslated("Why This Could Be High/Low", lang);
+  const tCons = useTranslated("Possible Consequences", lang);
+  const tImprove = useTranslated("How to Improve", lang);
+  const tRefs = useTranslated("Verified Medical References", lang);
 
   return (
     <motion.div
@@ -51,7 +62,7 @@ const FindingDetail = ({ finding }: { finding: AbnormalFinding }) => {
             )}
           </div>
         </div>
-        <p className="text-sm text-foreground/70 leading-relaxed">{finding.explanation}</p>
+        <p className="text-sm text-foreground/70 leading-relaxed">{tExplanation}</p>
       </button>
 
       <AnimatePresence>
@@ -68,10 +79,10 @@ const FindingDetail = ({ finding }: { finding: AbnormalFinding }) => {
               <div>
                 <h5 className="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-1.5">
                   <Search className="w-3 h-3 text-primary" />
-                  Why This Could Be High/Low
+                  {tWhy}
                 </h5>
                 <ul className="space-y-1">
-                  {finding.possibleCauses.map((cause, i) => (
+                  {tCauses.map((cause, i) => (
                     <li key={i} className="text-xs text-foreground/70 flex items-start gap-1.5">
                       <span className="text-primary mt-0.5">•</span>
                       {cause}
@@ -84,10 +95,10 @@ const FindingDetail = ({ finding }: { finding: AbnormalFinding }) => {
               <div>
                 <h5 className="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-1.5">
                   <TrendingDown className="w-3 h-3 text-status-critical" />
-                  Possible Consequences
+                  {tCons}
                 </h5>
                 <ul className="space-y-1">
-                  {finding.consequences.map((consequence, i) => (
+                  {tConsequences.map((consequence, i) => (
                     <li key={i} className="text-xs text-foreground/70 flex items-start gap-1.5">
                       <span className="text-status-critical mt-0.5">•</span>
                       {consequence}
@@ -100,10 +111,10 @@ const FindingDetail = ({ finding }: { finding: AbnormalFinding }) => {
               <div className={`p-3 rounded-lg ${isCritical ? "bg-status-critical/5" : "bg-primary/5"} border ${isCritical ? "border-status-critical/10" : "border-primary/10"}`}>
                 <h5 className="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-1.5">
                   <Lightbulb className="w-3 h-3 text-status-attention" />
-                  How to Improve
+                  {tImprove}
                 </h5>
                 <ul className="space-y-1">
-                  {finding.reductionTips.map((tip, i) => (
+                  {tTips.map((tip, i) => (
                     <li key={i} className="text-xs text-foreground/70 flex items-start gap-1.5">
                       <span className="text-status-attention mt-0.5">✦</span>
                       {tip}
@@ -117,7 +128,7 @@ const FindingDetail = ({ finding }: { finding: AbnormalFinding }) => {
                 <div className="p-3 rounded-lg bg-muted/40 border border-border/40">
                   <h5 className="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-2">
                     <BookOpen className="w-3 h-3 text-primary" />
-                    Verified Medical References
+                    {tRefs}
                   </h5>
                   <ul className="space-y-1.5">
                     {finding.references.map((ref, i) => (
@@ -148,6 +159,9 @@ const FindingDetail = ({ finding }: { finding: AbnormalFinding }) => {
 };
 
 const AbnormalFindings = ({ findings }: AbnormalFindingsProps) => {
+  const { lang } = useLang();
+  const tHeader = useTranslated("Abnormal Findings — AI Clinical Analysis", lang);
+  const tHelp = useTranslated("Click on each finding to see AI-generated correlations, consequences, and lifestyle tips.", lang);
   if (findings.length === 0) return null;
 
   return (
@@ -163,13 +177,13 @@ const AbnormalFindings = ({ findings }: AbnormalFindingsProps) => {
         <div className="w-8 h-8 rounded-lg bg-status-attention/10 flex items-center justify-center">
           <AlertTriangle className="w-4 h-4 text-status-attention" />
         </div>
-        Abnormal Findings — AI Clinical Analysis
+        {tHeader}
         <span className="text-xs px-2 py-0.5 rounded-full bg-status-attention/10 text-status-attention font-medium">
           {findings.length}
         </span>
       </h3>
       <p className="text-xs text-muted-foreground mb-4 relative z-10">
-        Click on each finding to see AI-generated correlations, consequences, and lifestyle tips.
+        {tHelp}
       </p>
       <div className="space-y-3 relative z-10">
         {findings.map((finding, i) => (

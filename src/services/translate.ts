@@ -1,8 +1,13 @@
 /**
- * Lightweight client-side translator for the AI Doctor narration.
- * Maps deterministic English message templates to Hindi/Telugu/Marathi.
- * Works offline, no API key required. Test names + numbers are preserved.
+ * Client-side translator with two layers:
+ *   1) Instant offline dictionary for known phrases (zero latency)
+ *   2) Async Google Translate (free unofficial endpoint, no API key) for arbitrary text
+ *
+ * Async results are cached in-memory + sessionStorage. Components can use
+ * `useTranslated(text, lang)` to render translated text reactively.
  */
+
+import { useEffect, useState } from "react";
 
 export type LangCode = "en" | "hi" | "te" | "mr";
 
@@ -28,34 +33,33 @@ const dict: Record<Exclude<LangCode, "en">, Dict> = {
       "मुझे कुछ महत्वपूर्ण निष्कर्षों पर ध्यान दिलाना है। कृपया ध्यान से देखें और जल्द ही डॉक्टर से सलाह लें।",
     "Here are some lifestyle tips based on your results:":
       "आपके परिणामों के आधार पर कुछ जीवनशैली सुझाव:",
-    "Your blood sugar needs attention. Reduce refined carbs, increase fiber, and walk after meals.":
-      "आपके रक्त शर्करा पर ध्यान देने की आवश्यकता है। परिष्कृत कार्ब्स कम करें, फाइबर बढ़ाएँ, और भोजन के बाद टहलें।",
-    "Focus on heart health: healthy fats, omega-3 foods, and 30 min exercise daily.":
-      "हृदय स्वास्थ्य पर ध्यान दें: स्वस्थ वसा, ओमेगा-3 भोजन, और प्रतिदिन 30 मिनट व्यायाम।",
-    "Boost iron with spinach, lentils, and vitamin C for better absorption.":
-      "पालक, दाल और विटामिन सी से आयरन बढ़ाएँ ताकि अवशोषण बेहतर हो।",
-    "Stay hydrated — bananas, coconut water, and leafy greens help electrolyte balance.":
-      "हाइड्रेटेड रहें — केला, नारियल पानी और हरी पत्तेदार सब्ज़ियाँ इलेक्ट्रोलाइट संतुलन में मदद करती हैं।",
-    "Results look good! Keep up balanced diet, exercise, and sleep.":
-      "परिणाम अच्छे लग रहे हैं! संतुलित आहार, व्यायाम और नींद बनाए रखें।",
-    "Scroll down for detailed panels, recommendations, and doctor advice. I'm AI — not a replacement for your doctor!":
-      "विस्तृत पैनल, सिफारिशें और डॉक्टर की सलाह के लिए नीचे स्क्रॉल करें। मैं एआई हूँ — आपके डॉक्टर का विकल्प नहीं!",
-    "I analyzed": "मैंने विश्लेषण किया",
-    "tests across": "परीक्षण,",
-    "panels.": "पैनल में।",
-    "normal,": "सामान्य,",
-    "need attention.": "ध्यान चाहिए।",
-    "Critical:": "गंभीर:",
-    "need immediate medical attention.": "तत्काल चिकित्सा ध्यान आवश्यक।",
-    "are slightly outside normal — worth monitoring.":
-      "सामान्य से थोड़ा बाहर हैं — निगरानी रखें।",
-    "You have": "आपके पास",
-    "critical findings that need immediate attention.": "गंभीर निष्कर्ष हैं जिन पर तुरंत ध्यान देने की आवश्यकता है।",
-    "critically": "गंभीर रूप से",
-    "high": "उच्च",
-    "low": "निम्न",
-    "normal:": "सामान्य:",
-    "See a doctor right away.": "तुरंत डॉक्टर से मिलें।",
+    "Overall Summary": "समग्र सारांश",
+    "Health Score": "स्वास्थ्य स्कोर",
+    "Total Tests": "कुल परीक्षण",
+    "Normal": "सामान्य",
+    "Need Attention": "ध्यान चाहिए",
+    "Optimal": "उत्तम",
+    "Attention": "ध्यान",
+    "Critical": "गंभीर",
+    "Test panels detected": "पता चले परीक्षण पैनल",
+    "Test Panels Detected": "पता चले परीक्षण पैनल",
+    "Abnormal Findings — AI Clinical Analysis": "असामान्य निष्कर्ष — एआई नैदानिक विश्लेषण",
+    "Click on each finding to see AI-generated correlations, consequences, and lifestyle tips.":
+      "प्रत्येक निष्कर्ष पर क्लिक करें ताकि एआई द्वारा निर्मित सहसंबंध, परिणाम और जीवनशैली सुझाव देख सकें।",
+    "Why This Could Be High/Low": "यह उच्च/निम्न क्यों हो सकता है",
+    "Possible Consequences": "संभावित परिणाम",
+    "How to Improve": "कैसे सुधारें",
+    "Verified Medical References": "सत्यापित चिकित्सा संदर्भ",
+    "Practical Advice": "व्यावहारिक सलाह",
+    "Recommended Actions": "अनुशंसित क्रियाएँ",
+    "When to Consult Doctor": "डॉक्टर से कब परामर्श करें",
+    "Discuss with Your Doctor": "अपने डॉक्टर से चर्चा करें",
+    "Print Report": "रिपोर्ट प्रिंट करें",
+    "Back": "वापस",
+    "Your Lab Report Analysis": "आपकी लैब रिपोर्ट विश्लेषण",
+    "Analyze Another": "एक और विश्लेषण",
+    "Upload a new lab report for instant AI insights.": "तुरंत एआई अंतर्दृष्टि के लिए नई लैब रिपोर्ट अपलोड करें।",
+    "New Report": "नई रिपोर्ट",
   },
   te: {
     "Great news — no critical findings in your report! All values are within safe ranges.":
@@ -68,34 +72,33 @@ const dict: Record<Exclude<LangCode, "en">, Dict> = {
       "కొన్ని ముఖ్యమైన ఫలితాలను చూపించాలి. దయచేసి జాగ్రత్తగా చూసి త్వరగా డాక్టర్‌ను సంప్రదించండి.",
     "Here are some lifestyle tips based on your results:":
       "మీ ఫలితాల ఆధారంగా కొన్ని జీవనశైలి సూచనలు:",
-    "Your blood sugar needs attention. Reduce refined carbs, increase fiber, and walk after meals.":
-      "మీ రక్తంలో చక్కెరపై దృష్టి అవసరం. శుద్ధి చేసిన పిండిపదార్థాలు తగ్గించండి, ఫైబర్ పెంచండి, భోజనం తర్వాత నడవండి.",
-    "Focus on heart health: healthy fats, omega-3 foods, and 30 min exercise daily.":
-      "హృదయ ఆరోగ్యంపై దృష్టి పెట్టండి: ఆరోగ్యకర కొవ్వులు, ఒమేగా-3 ఆహారం, రోజూ 30 నిమిషాల వ్యాయామం.",
-    "Boost iron with spinach, lentils, and vitamin C for better absorption.":
-      "పాలకూర, పప్పులు, విటమిన్ సి తో ఇనుము పెంచుకోండి — శోషణ మెరుగవుతుంది.",
-    "Stay hydrated — bananas, coconut water, and leafy greens help electrolyte balance.":
-      "హైడ్రేటెడ్‌గా ఉండండి — అరటిపండ్లు, కొబ్బరి నీరు, ఆకు కూరలు ఎలక్ట్రోలైట్ సమతుల్యతకు సహాయపడతాయి.",
-    "Results look good! Keep up balanced diet, exercise, and sleep.":
-      "ఫలితాలు బాగున్నాయి! సమతుల ఆహారం, వ్యాయామం, నిద్ర కొనసాగించండి.",
-    "Scroll down for detailed panels, recommendations, and doctor advice. I'm AI — not a replacement for your doctor!":
-      "వివరమైన ప్యానెల్స్, సూచనలు మరియు డాక్టర్ సలహా కోసం క్రిందికి స్క్రోల్ చేయండి. నేను ఏఐని — మీ డాక్టర్‌కు ప్రత్యామ్నాయం కాదు!",
-    "I analyzed": "నేను విశ్లేషించాను",
-    "tests across": "పరీక్షలు,",
-    "panels.": "ప్యానెల్స్‌లో.",
-    "normal,": "సాధారణం,",
-    "need attention.": "దృష్టి అవసరం.",
-    "Critical:": "క్లిష్టమైనవి:",
-    "need immediate medical attention.": "తక్షణ వైద్య సహాయం అవసరం.",
-    "are slightly outside normal — worth monitoring.":
-      "సాధారణం కంటే కొంచెం వెలుపల ఉన్నాయి — పరిశీలించండి.",
-    "You have": "మీకు ఉన్నాయి",
-    "critical findings that need immediate attention.": "తక్షణం దృష్టి అవసరమైన క్లిష్ట ఫలితాలు.",
-    "critically": "క్లిష్టంగా",
-    "high": "ఎక్కువ",
-    "low": "తక్కువ",
-    "normal:": "సాధారణం:",
-    "See a doctor right away.": "వెంటనే డాక్టర్‌ని కలవండి.",
+    "Overall Summary": "మొత్తం సారాంశం",
+    "Health Score": "ఆరోగ్య స్కోర్",
+    "Total Tests": "మొత్తం పరీక్షలు",
+    "Normal": "సాధారణం",
+    "Need Attention": "దృష్టి అవసరం",
+    "Optimal": "ఉత్తమం",
+    "Attention": "శ్రద్ధ",
+    "Critical": "క్లిష్టం",
+    "Test panels detected": "గుర్తించిన పరీక్ష ప్యానెల్స్",
+    "Test Panels Detected": "గుర్తించిన పరీక్ష ప్యానెల్స్",
+    "Abnormal Findings — AI Clinical Analysis": "అసాధారణ ఫలితాలు — ఏఐ క్లినికల్ విశ్లేషణ",
+    "Click on each finding to see AI-generated correlations, consequences, and lifestyle tips.":
+      "ప్రతి ఫలితంపై క్లిక్ చేస్తే ఏఐ సహసంబంధాలు, పరిణామాలు మరియు జీవనశైలి సూచనలు చూడవచ్చు.",
+    "Why This Could Be High/Low": "ఇది ఎందుకు ఎక్కువ/తక్కువ కావచ్చు",
+    "Possible Consequences": "సాధ్యమైన పరిణామాలు",
+    "How to Improve": "ఎలా మెరుగుపరచాలి",
+    "Verified Medical References": "ధృవీకరించబడిన వైద్య సూచనలు",
+    "Practical Advice": "ఆచరణాత్మక సలహా",
+    "Recommended Actions": "సిఫార్సు చేయబడిన చర్యలు",
+    "When to Consult Doctor": "డాక్టర్‌ను ఎప్పుడు సంప్రదించాలి",
+    "Discuss with Your Doctor": "మీ డాక్టర్‌తో చర్చించండి",
+    "Print Report": "నివేదికను ప్రింట్ చేయండి",
+    "Back": "వెనుకకు",
+    "Your Lab Report Analysis": "మీ ల్యాబ్ నివేదిక విశ్లేషణ",
+    "Analyze Another": "మరొకటి విశ్లేషించండి",
+    "Upload a new lab report for instant AI insights.": "తక్షణ ఏఐ అంతర్దృష్టుల కోసం కొత్త ల్యాబ్ నివేదికను అప్‌లోడ్ చేయండి.",
+    "New Report": "కొత్త నివేదిక",
   },
   mr: {
     "Great news — no critical findings in your report! All values are within safe ranges.":
@@ -108,58 +111,143 @@ const dict: Record<Exclude<LangCode, "en">, Dict> = {
       "काही महत्त्वाच्या निष्कर्षांकडे लक्ष वेधायचे आहे. कृपया काळजीपूर्वक तपासा आणि लवकरच डॉक्टरांचा सल्ला घ्या.",
     "Here are some lifestyle tips based on your results:":
       "तुमच्या निकालांवर आधारित काही जीवनशैली सूचना:",
-    "Your blood sugar needs attention. Reduce refined carbs, increase fiber, and walk after meals.":
-      "तुमच्या रक्तातील साखरेकडे लक्ष द्या. प्रक्रिया केलेले कार्ब कमी करा, फायबर वाढवा आणि जेवणानंतर चालणे करा.",
-    "Focus on heart health: healthy fats, omega-3 foods, and 30 min exercise daily.":
-      "हृदयाच्या आरोग्यावर लक्ष द्या: निरोगी स्निग्ध पदार्थ, ओमेगा-3 अन्न आणि दररोज 30 मिनिटांचा व्यायाम.",
-    "Boost iron with spinach, lentils, and vitamin C for better absorption.":
-      "पालक, डाळ आणि व्हिटॅमिन सी ने लोह वाढवा — चांगल्या शोषणासाठी.",
-    "Stay hydrated — bananas, coconut water, and leafy greens help electrolyte balance.":
-      "हायड्रेटेड रहा — केळी, नारळ पाणी आणि हिरव्या भाज्या इलेक्ट्रोलाइट संतुलनास मदत करतात.",
-    "Results look good! Keep up balanced diet, exercise, and sleep.":
-      "निकाल चांगले दिसत आहेत! संतुलित आहार, व्यायाम आणि झोप कायम ठेवा.",
-    "Scroll down for detailed panels, recommendations, and doctor advice. I'm AI — not a replacement for your doctor!":
-      "तपशीलवार पॅनेल, शिफारसी आणि डॉक्टरांच्या सल्ल्यासाठी खाली स्क्रोल करा. मी एआय आहे — तुमच्या डॉक्टरांचा पर्याय नाही!",
-    "I analyzed": "मी विश्लेषण केले",
-    "tests across": "चाचण्या,",
-    "panels.": "पॅनेलमध्ये.",
-    "normal,": "सामान्य,",
-    "need attention.": "लक्ष आवश्यक.",
-    "Critical:": "गंभीर:",
-    "need immediate medical attention.": "त्वरित वैद्यकीय लक्ष आवश्यक.",
-    "are slightly outside normal — worth monitoring.":
-      "सामान्यपेक्षा थोडे बाहेर आहेत — निरीक्षण करा.",
-    "You have": "तुमच्याकडे आहेत",
-    "critical findings that need immediate attention.": "गंभीर निष्कर्ष ज्यांना त्वरित लक्ष आवश्यक आहे.",
-    "critically": "गंभीरपणे",
-    "high": "जास्त",
-    "low": "कमी",
-    "normal:": "सामान्य:",
-    "See a doctor right away.": "लगेच डॉक्टरांना भेटा.",
+    "Overall Summary": "एकूण सारांश",
+    "Health Score": "आरोग्य स्कोअर",
+    "Total Tests": "एकूण चाचण्या",
+    "Normal": "सामान्य",
+    "Need Attention": "लक्ष आवश्यक",
+    "Optimal": "उत्तम",
+    "Attention": "लक्ष",
+    "Critical": "गंभीर",
+    "Test panels detected": "आढळलेले चाचणी पॅनेल",
+    "Test Panels Detected": "आढळलेले चाचणी पॅनेल",
+    "Abnormal Findings — AI Clinical Analysis": "असामान्य निष्कर्ष — एआय क्लिनिकल विश्लेषण",
+    "Click on each finding to see AI-generated correlations, consequences, and lifestyle tips.":
+      "प्रत्येक निष्कर्षावर क्लिक करा आणि एआय-निर्मित सहसंबंध, परिणाम आणि जीवनशैली सूचना पहा.",
+    "Why This Could Be High/Low": "हे जास्त/कमी का असू शकते",
+    "Possible Consequences": "संभाव्य परिणाम",
+    "How to Improve": "कसे सुधारावे",
+    "Verified Medical References": "सत्यापित वैद्यकीय संदर्भ",
+    "Practical Advice": "व्यावहारिक सल्ला",
+    "Recommended Actions": "शिफारस केलेल्या क्रिया",
+    "When to Consult Doctor": "डॉक्टरांचा सल्ला कधी घ्यावा",
+    "Discuss with Your Doctor": "तुमच्या डॉक्टरांशी चर्चा करा",
+    "Print Report": "अहवाल मुद्रित करा",
+    "Back": "मागे",
+    "Your Lab Report Analysis": "तुमच्या लॅब अहवालाचे विश्लेषण",
+    "Analyze Another": "आणखी एक विश्लेषण",
+    "Upload a new lab report for instant AI insights.": "त्वरित एआय अंतर्दृष्टीसाठी नवीन लॅब अहवाल अपलोड करा.",
+    "New Report": "नवीन अहवाल",
   },
 };
 
-/**
- * Translate a message by replacing known English fragments with the target language.
- * Falls back to original text for any fragment not in the dictionary (test names, numbers, units).
- */
+/** Synchronous lookup — returns instant translation or original text. */
 export function translate(text: string, lang: LangCode): string {
   if (lang === "en" || !text) return text;
   const d = dict[lang];
-  // Try whole-string match first
   if (d[text]) return d[text];
-
   let out = text;
-  // Replace longer keys first to avoid partial collisions
   const keys = Object.keys(d).sort((a, b) => b.length - a.length);
   for (const k of keys) {
-    if (out.includes(k)) {
-      out = out.split(k).join(d[k]);
-    }
+    if (out.includes(k)) out = out.split(k).join(d[k]);
   }
   return out;
 }
 
 export function getBcp47(lang: LangCode): string {
   return LANGUAGES.find((l) => l.code === lang)?.bcp47 ?? "en-US";
+}
+
+/* ───────────── Async Google Translate (free unofficial endpoint) ───────────── */
+
+const memCache = new Map<string, string>();
+
+function cacheKey(text: string, lang: LangCode) {
+  return `tx:${lang}:${text}`;
+}
+
+function readSession(key: string): string | null {
+  if (typeof sessionStorage === "undefined") return null;
+  try { return sessionStorage.getItem(key); } catch { return null; }
+}
+function writeSession(key: string, value: string) {
+  if (typeof sessionStorage === "undefined") return;
+  try { sessionStorage.setItem(key, value); } catch { /* quota */ }
+}
+
+const inflight = new Map<string, Promise<string>>();
+
+export async function translateAsync(text: string, lang: LangCode): Promise<string> {
+  if (lang === "en" || !text?.trim()) return text;
+
+  const key = cacheKey(text, lang);
+  if (memCache.has(key)) return memCache.get(key)!;
+  const sessioned = readSession(key);
+  if (sessioned) { memCache.set(key, sessioned); return sessioned; }
+  if (inflight.has(key)) return inflight.get(key)!;
+
+  // Try instant dict first
+  const dictHit = translate(text, lang);
+  if (dictHit !== text) {
+    memCache.set(key, dictHit);
+    writeSession(key, dictHit);
+    return dictHit;
+  }
+
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${lang}&dt=t&q=${encodeURIComponent(text)}`;
+  const p = fetch(url)
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error("translate failed"))))
+    .then((data: unknown) => {
+      // Response shape: [[[translated, original, ...], ...], ...]
+      const arr = data as [Array<[string, string]>] | unknown;
+      let translated = "";
+      if (Array.isArray(arr) && Array.isArray(arr[0])) {
+        for (const seg of arr[0] as Array<[string, string]>) {
+          if (Array.isArray(seg) && typeof seg[0] === "string") translated += seg[0];
+        }
+      }
+      const final = translated || text;
+      memCache.set(key, final);
+      writeSession(key, final);
+      return final;
+    })
+    .catch(() => text)
+    .finally(() => { inflight.delete(key); });
+
+  inflight.set(key, p);
+  return p;
+}
+
+/** React hook: returns translated text, falls back to original while loading. */
+export function useTranslated(text: string | undefined | null, lang: LangCode): string {
+  const safe = text ?? "";
+  const [out, setOut] = useState<string>(() => translate(safe, lang));
+
+  useEffect(() => {
+    if (!safe || lang === "en") { setOut(safe); return; }
+    const dictHit = translate(safe, lang);
+    setOut(dictHit); // optimistic
+    let cancelled = false;
+    translateAsync(safe, lang).then((t) => { if (!cancelled) setOut(t); });
+    return () => { cancelled = true; };
+  }, [safe, lang]);
+
+  return out;
+}
+
+/** Translate an array of strings reactively. */
+export function useTranslatedList(texts: string[], lang: LangCode): string[] {
+  const [out, setOut] = useState<string[]>(() => texts.map((t) => translate(t, lang)));
+
+  useEffect(() => {
+    if (lang === "en") { setOut(texts); return; }
+    setOut(texts.map((t) => translate(t, lang))); // optimistic
+    let cancelled = false;
+    Promise.all(texts.map((t) => translateAsync(t, lang))).then((results) => {
+      if (!cancelled) setOut(results);
+    });
+    return () => { cancelled = true; };
+  }, [texts.join("¦"), lang]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return out;
 }
