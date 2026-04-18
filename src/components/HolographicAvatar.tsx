@@ -143,7 +143,9 @@ const HoloRing = ({ delay = 0 }: { delay?: number }) => (
 /* ─── MAIN COMPONENT ─── */
 const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
   const [mode, setMode] = useState<SummaryMode>("full");
-  const messages = useMemo(() => generateMessages(results, mode), [results, mode]);
+  const [lang, setLang] = useState<LangCode>("en");
+  const baseMessages = useMemo(() => generateMessages(results, mode), [results, mode]);
+  const messages = useMemo(() => baseMessages.map((m) => translate(m, lang)), [baseMessages, lang]);
   const [currentMsg, setCurrentMsg] = useState(0);
   const [isExpanded, setIsExpanded] = useState(true);
   const [displayedText, setDisplayedText] = useState("");
