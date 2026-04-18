@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
 import { CheckCircle, AlertTriangle, XCircle, TrendingUp, Heart } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
+import { useLang } from "@/contexts/LangContext";
+import { useTranslated } from "@/services/translate";
 
 interface HealthScoreCardProps {
   score: number;
