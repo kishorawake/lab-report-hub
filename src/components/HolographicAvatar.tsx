@@ -439,6 +439,27 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.4, ease: "easeInOut" }}
               >
+                {/* Language Selector */}
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="text-[9px] uppercase tracking-wider text-holo/50 font-mono">Voice</span>
+                  <div className="flex gap-1 flex-1 bg-holo/5 border border-holo/10 rounded-lg p-0.5">
+                    {LANGUAGES.map((l) => (
+                      <button
+                        key={l.code}
+                        onClick={() => setLang(l.code)}
+                        title={`Narrate in ${l.label}`}
+                        className={`flex-1 text-[9px] font-medium py-1 px-1 rounded-md transition-all ${
+                          lang === l.code
+                            ? "bg-holo/20 text-holo shadow-[0_0_8px_hsl(185_85%_60%/0.25)]"
+                            : "text-holo/40 hover:text-holo/70"
+                        }`}
+                      >
+                        {l.native}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Mode Switcher */}
                 <div className="flex gap-1 mb-3 bg-holo/5 border border-holo/10 rounded-lg p-0.5">
                   {(Object.keys(modeConfig) as SummaryMode[]).map((m) => {
