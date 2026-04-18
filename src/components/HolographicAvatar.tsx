@@ -164,9 +164,19 @@ const HoloRing = ({ delay = 0 }: { delay?: number }) => (
 /* ─── MAIN COMPONENT ─── */
 const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
   const [mode, setMode] = useState<SummaryMode>("full");
-  const [lang, setLang] = useState<LangCode>("en");
+  const { lang, setLang } = useLang();
   const baseMessages = useMemo(() => generateMessages(results, mode), [results, mode]);
-  const messages = useMemo(() => baseMessages.map((m) => translate(m, lang)), [baseMessages, lang]);
+  // Optimistic sync translation, then upgrade asynchronously via Google Translate.
+  const [messages, setMessages] = useState<string[]>(() => baseMessages.map((m) => translate(m, lang)));
+  useEffect(() => {
+    setMessages(baseMessages.map((m) => translate(m, lang)));
+    if (lang === "en") return;
+    let cancelled = false;
+    Promise.all(baseMessages.map((m) => translateAsync(m, lang))).then((res) => {
+      if (!cancelled) setMessages(res);
+    });
+    return () => { cancelled = true; };
+  }, [baseMessages, lang]);
   const [currentMsg, setCurrentMsg] = useState(0);
   const [isExpanded, setIsExpanded] = useState(true);
   const [displayedText, setDisplayedText] = useState("");
