@@ -160,6 +160,7 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
   const avatarRef = useRef<HTMLDivElement>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const speakTokenRef = useRef(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   /* Projection animation on mount */
   useEffect(() => {
@@ -210,38 +211,108 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
         /* noop */
       }
     }
+    if (audioRef.current) {
+      try {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+      } catch {
+        /* noop */
+      }
+      audioRef.current = null;
+    }
     utteranceRef.current = null;
     setIsSpeaking(false);
   }, []);
 
+  /* Google Translate TTS fallback — free, no API key, natural Indic voices.
+     Splits long text into <=180 char chunks and plays them sequentially. */
+  const speakViaGoogle = useCallback((text: string, langCode: LangCode, token: number) => {
+    const chunks: string[] = [];
+    const sentences = text.split(/(?<=[.?!।])\s+/);
+    let buf = "";
+    for (const s of sentences) {
+      if ((buf + " " + s).trim().length > 180) {
+        if (buf) chunks.push(buf.trim());
+        if (s.length > 180) {
+          for (let i = 0; i < s.length; i += 180) chunks.push(s.slice(i, i + 180));
+          buf = "";
+        } else buf = s;
+      } else {
+        buf = (buf + " " + s).trim();
+      }
+    }
+    if (buf) chunks.push(buf.trim());
+
+    const tl = langCode === "en" ? "en" : langCode;
+    let idx = 0;
+    const playNext = () => {
+      if (token !== speakTokenRef.current) return;
+      if (idx >= chunks.length) {
+        setIsSpeaking(false);
+        return;
+      }
+      const chunk = chunks[idx++];
+      const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(
+        chunk
+      )}&tl=${tl}&client=tw-ob`;
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onplay = () => {
+        if (token === speakTokenRef.current) setIsSpeaking(true);
+      };
+      audio.onended = () => playNext();
+      audio.onerror = () => {
+        if (token === speakTokenRef.current) setIsSpeaking(false);
+      };
+      audio.play().catch(() => {
+        if (token === speakTokenRef.current) setIsSpeaking(false);
+      });
+    };
+    playNext();
+  }, []);
+
   const speak = useCallback((text: string, langCode: LangCode) => {
-    if (typeof window === "undefined" || !window.speechSynthesis || !text) return;
+    if (typeof window === "undefined" || !text) return;
     const synth = window.speechSynthesis;
     speakTokenRef.current += 1;
     const myToken = speakTokenRef.current;
     try {
-      synth.cancel();
+      synth?.cancel();
     } catch {
       /* noop */
+    }
+    if (audioRef.current) {
+      try { audioRef.current.pause(); } catch { /* noop */ }
+      audioRef.current = null;
     }
 
     const cleanText = text.replace(/[⚠️🔴🍎❤️🥬💧✅😊◉◎◈]/g, "").trim();
     if (!cleanText) return;
 
+    const targetLang = getBcp47(langCode);
+    const langPrefix = targetLang.split("-")[0].toLowerCase();
+    const voices = synth?.getVoices() ?? [];
+    const nativeVoice =
+      voices.find((v) => v.lang?.toLowerCase() === targetLang.toLowerCase()) ||
+      voices.find((v) => v.lang?.toLowerCase().startsWith(langPrefix));
+
+    // For Indic languages, prefer Google TTS unless device has a real native voice.
+    const isIndic = langCode !== "en";
+    if ((isIndic && !nativeVoice) || !synth) {
+      speakViaGoogle(cleanText, langCode, myToken);
+      return;
+    }
+
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.rate = 0.98;
     utterance.pitch = 1.05;
     utterance.volume = 1;
-    const targetLang = getBcp47(langCode);
     utterance.lang = targetLang;
-    const voices = synth.getVoices();
-    const langPrefix = targetLang.split("-")[0].toLowerCase();
-    // Prefer exact bcp47 match, then language prefix, then any default
-    const preferred =
-      voices.find((v) => v.lang?.toLowerCase() === targetLang.toLowerCase()) ||
-      voices.find((v) => v.lang?.toLowerCase().startsWith(langPrefix)) ||
-      voices.find((v) => /^en/i.test(v.lang));
-    if (preferred) utterance.voice = preferred;
+    if (nativeVoice) utterance.voice = nativeVoice;
+    else {
+      const en = voices.find((v) => /^en/i.test(v.lang));
+      if (en) utterance.voice = en;
+    }
 
     utterance.onstart = () => {
       if (myToken === speakTokenRef.current) setIsSpeaking(true);
@@ -250,7 +321,9 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
       if (myToken === speakTokenRef.current) setIsSpeaking(false);
     };
     utterance.onerror = () => {
-      if (myToken === speakTokenRef.current) setIsSpeaking(false);
+      if (myToken === speakTokenRef.current) {
+        speakViaGoogle(cleanText, langCode, speakTokenRef.current);
+      }
     };
     utteranceRef.current = utterance;
 
@@ -259,11 +332,11 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
         try {
           synth.speak(utterance);
         } catch {
-          setIsSpeaking(false);
+          speakViaGoogle(cleanText, langCode, speakTokenRef.current);
         }
       }
     }, 60);
-  }, []);
+  }, [speakViaGoogle]);
 
   /* Cleanup any ongoing speech on unmount */
   useEffect(() => {
