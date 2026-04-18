@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import aiDoctorAvatar from "@/assets/ai-doctor-avatar.png";
 import type { AnalysisResult } from "@/services/labAnalyzer";
+import { LANGUAGES, type LangCode, translate, getBcp47 } from "@/services/translate";
 
 /* ─── types ─── */
 interface HolographicAvatarProps {
