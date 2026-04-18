@@ -289,21 +289,29 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
       }
       setIsMuted(false);
       // Auto-play current message immediately on unmute
-      setTimeout(() => speak(messages[currentMsg] ?? ""), 120);
+      setTimeout(() => speak(messages[currentMsg] ?? "", lang), 120);
     }
     setSparkBurst((n) => n + 1);
   };
 
   const handleReplay = () => {
     setSparkBurst((n) => n + 1);
-    speak(messages[currentMsg] ?? "");
+    speak(messages[currentMsg] ?? "", lang);
   };
 
   const goToMsg = (i: number) => {
     setCurrentMsg(i);
     setSparkBurst((n) => n + 1);
-    if (!isMuted) setTimeout(() => speak(messages[i] ?? ""), 100);
+    if (!isMuted) setTimeout(() => speak(messages[i] ?? "", lang), 100);
   };
+
+  // Re-speak current message when language changes (if unmuted)
+  useEffect(() => {
+    if (!isMuted) {
+      const t = setTimeout(() => speak(messages[currentMsg] ?? "", lang), 150);
+      return () => clearTimeout(t);
+    }
+  }, [lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <motion.div
