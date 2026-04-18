@@ -160,6 +160,7 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
   const avatarRef = useRef<HTMLDivElement>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const speakTokenRef = useRef(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   /* Projection animation on mount */
   useEffect(() => {
