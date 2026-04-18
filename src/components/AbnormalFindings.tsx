@@ -79,10 +79,10 @@ const FindingDetail = ({ finding }: { finding: AbnormalFinding }) => {
               <div>
                 <h5 className="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-1.5">
                   <Search className="w-3 h-3 text-primary" />
-                  Why This Could Be High/Low
+                  {tWhy}
                 </h5>
                 <ul className="space-y-1">
-                  {finding.possibleCauses.map((cause, i) => (
+                  {tCauses.map((cause, i) => (
                     <li key={i} className="text-xs text-foreground/70 flex items-start gap-1.5">
                       <span className="text-primary mt-0.5">•</span>
                       {cause}
@@ -95,10 +95,10 @@ const FindingDetail = ({ finding }: { finding: AbnormalFinding }) => {
               <div>
                 <h5 className="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-1.5">
                   <TrendingDown className="w-3 h-3 text-status-critical" />
-                  Possible Consequences
+                  {tCons}
                 </h5>
                 <ul className="space-y-1">
-                  {finding.consequences.map((consequence, i) => (
+                  {tConsequences.map((consequence, i) => (
                     <li key={i} className="text-xs text-foreground/70 flex items-start gap-1.5">
                       <span className="text-status-critical mt-0.5">•</span>
                       {consequence}
@@ -111,10 +111,10 @@ const FindingDetail = ({ finding }: { finding: AbnormalFinding }) => {
               <div className={`p-3 rounded-lg ${isCritical ? "bg-status-critical/5" : "bg-primary/5"} border ${isCritical ? "border-status-critical/10" : "border-primary/10"}`}>
                 <h5 className="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-1.5">
                   <Lightbulb className="w-3 h-3 text-status-attention" />
-                  How to Improve
+                  {tImprove}
                 </h5>
                 <ul className="space-y-1">
-                  {finding.reductionTips.map((tip, i) => (
+                  {tTips.map((tip, i) => (
                     <li key={i} className="text-xs text-foreground/70 flex items-start gap-1.5">
                       <span className="text-status-attention mt-0.5">✦</span>
                       {tip}
@@ -128,7 +128,7 @@ const FindingDetail = ({ finding }: { finding: AbnormalFinding }) => {
                 <div className="p-3 rounded-lg bg-muted/40 border border-border/40">
                   <h5 className="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-2">
                     <BookOpen className="w-3 h-3 text-primary" />
-                    Verified Medical References
+                    {tRefs}
                   </h5>
                   <ul className="space-y-1.5">
                     {finding.references.map((ref, i) => (
