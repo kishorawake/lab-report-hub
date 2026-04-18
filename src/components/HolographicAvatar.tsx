@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import aiDoctorAvatar from "@/assets/ai-doctor-avatar.png";
 import type { AnalysisResult } from "@/services/labAnalyzer";
+import { LANGUAGES, type LangCode, translate, getBcp47 } from "@/services/translate";
 
 /* ─── types ─── */
 interface HolographicAvatarProps {
@@ -142,7 +143,9 @@ const HoloRing = ({ delay = 0 }: { delay?: number }) => (
 /* ─── MAIN COMPONENT ─── */
 const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
   const [mode, setMode] = useState<SummaryMode>("full");
-  const messages = useMemo(() => generateMessages(results, mode), [results, mode]);
+  const [lang, setLang] = useState<LangCode>("en");
+  const baseMessages = useMemo(() => generateMessages(results, mode), [results, mode]);
+  const messages = useMemo(() => baseMessages.map((m) => translate(m, lang)), [baseMessages, lang]);
   const [currentMsg, setCurrentMsg] = useState(0);
   const [isExpanded, setIsExpanded] = useState(true);
   const [displayedText, setDisplayedText] = useState("");
@@ -211,10 +214,9 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
     setIsSpeaking(false);
   }, []);
 
-  const speak = useCallback((text: string) => {
+  const speak = useCallback((text: string, langCode: LangCode) => {
     if (typeof window === "undefined" || !window.speechSynthesis || !text) return;
     const synth = window.speechSynthesis;
-    // Hard reset — Chrome bug: speechSynthesis "stuck" if previous utterance not cancelled cleanly
     speakTokenRef.current += 1;
     const myToken = speakTokenRef.current;
     try {
@@ -230,9 +232,15 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
     utterance.rate = 0.98;
     utterance.pitch = 1.05;
     utterance.volume = 1;
+    const targetLang = getBcp47(langCode);
+    utterance.lang = targetLang;
     const voices = synth.getVoices();
-    const preferred = voices.find((v) => /en[-_](US|GB)/i.test(v.lang) && /female|samantha|google/i.test(v.name))
-      || voices.find((v) => /^en/i.test(v.lang));
+    const langPrefix = targetLang.split("-")[0].toLowerCase();
+    // Prefer exact bcp47 match, then language prefix, then any default
+    const preferred =
+      voices.find((v) => v.lang?.toLowerCase() === targetLang.toLowerCase()) ||
+      voices.find((v) => v.lang?.toLowerCase().startsWith(langPrefix)) ||
+      voices.find((v) => /^en/i.test(v.lang));
     if (preferred) utterance.voice = preferred;
 
     utterance.onstart = () => {
@@ -246,7 +254,6 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
     };
     utteranceRef.current = utterance;
 
-    // Small delay lets cancel() flush in Chrome before speak()
     setTimeout(() => {
       if (myToken === speakTokenRef.current) {
         try {
@@ -282,21 +289,29 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
       }
       setIsMuted(false);
       // Auto-play current message immediately on unmute
-      setTimeout(() => speak(messages[currentMsg] ?? ""), 120);
+      setTimeout(() => speak(messages[currentMsg] ?? "", lang), 120);
     }
     setSparkBurst((n) => n + 1);
   };
 
   const handleReplay = () => {
     setSparkBurst((n) => n + 1);
-    speak(messages[currentMsg] ?? "");
+    speak(messages[currentMsg] ?? "", lang);
   };
 
   const goToMsg = (i: number) => {
     setCurrentMsg(i);
     setSparkBurst((n) => n + 1);
-    if (!isMuted) setTimeout(() => speak(messages[i] ?? ""), 100);
+    if (!isMuted) setTimeout(() => speak(messages[i] ?? "", lang), 100);
   };
+
+  // Re-speak current message when language changes (if unmuted)
+  useEffect(() => {
+    if (!isMuted) {
+      const t = setTimeout(() => speak(messages[currentMsg] ?? "", lang), 150);
+      return () => clearTimeout(t);
+    }
+  }, [lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <motion.div
@@ -424,6 +439,27 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.4, ease: "easeInOut" }}
               >
+                {/* Language Selector */}
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="text-[9px] uppercase tracking-wider text-holo/50 font-mono">Voice</span>
+                  <div className="flex gap-1 flex-1 bg-holo/5 border border-holo/10 rounded-lg p-0.5">
+                    {LANGUAGES.map((l) => (
+                      <button
+                        key={l.code}
+                        onClick={() => setLang(l.code)}
+                        title={`Narrate in ${l.label}`}
+                        className={`flex-1 text-[9px] font-medium py-1 px-1 rounded-md transition-all ${
+                          lang === l.code
+                            ? "bg-holo/20 text-holo shadow-[0_0_8px_hsl(185_85%_60%/0.25)]"
+                            : "text-holo/40 hover:text-holo/70"
+                        }`}
+                      >
+                        {l.native}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Mode Switcher */}
                 <div className="flex gap-1 mb-3 bg-holo/5 border border-holo/10 rounded-lg p-0.5">
                   {(Object.keys(modeConfig) as SummaryMode[]).map((m) => {
