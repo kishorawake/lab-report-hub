@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import aiDoctorAvatar from "@/assets/ai-doctor-avatar.png";
 import type { AnalysisResult } from "@/services/labAnalyzer";
-import { LANGUAGES, type LangCode, translate, getBcp47 } from "@/services/translate";
+import { LANGUAGES, type LangCode, translate, translateAsync, getBcp47 } from "@/services/translate";
+import { useLang } from "@/contexts/LangContext";
 
 /* ─── types ─── */
 interface HolographicAvatarProps {
@@ -27,7 +28,7 @@ type SummaryMode = "full" | "critical" | "lifestyle";
 /* ─── message generator (same logic, HIPAA-safe) ─── */
 function generateMessages(results: AnalysisResult, mode: SummaryMode): string[] {
   const msgs: string[] = [];
-  const { healthScore, abnormalTests, totalTests, tests } = results;
+  const { healthScore, abnormalTests, totalTests, tests, recommendedActions } = results;
 
   if (mode === "critical") {
     const criticalTests = tests.filter((t) => t.status.includes("critical"));
@@ -39,6 +40,13 @@ function generateMessages(results: AnalysisResult, mode: SummaryMode): string[] 
         msgs.push(
           `🔴 ${t.name}: ${t.rawValue} — critically ${t.status.includes("high") ? "high" : "low"} (normal: ${t.normalRange}). See a doctor right away.`
         );
+      });
+    }
+    // Always include recommended actions in narration
+    if (recommendedActions?.length) {
+      msgs.push("Here are the recommended next steps:");
+      recommendedActions.forEach((a) => {
+        msgs.push(`Step ${a.step}: ${a.title}. ${a.description}`);
       });
     }
     return msgs;
@@ -55,6 +63,12 @@ function generateMessages(results: AnalysisResult, mode: SummaryMode): string[] 
     if (tests.some((t) => t.panel === "Electrolytes" && t.status !== "normal"))
       msgs.push("💧 Stay hydrated — bananas, coconut water, and leafy greens help electrolyte balance.");
     if (msgs.length === 1) msgs.push("✅ Results look good! Keep up balanced diet, exercise, and sleep.");
+    if (recommendedActions?.length) {
+      msgs.push("And here are the recommended next steps:");
+      recommendedActions.forEach((a) => {
+        msgs.push(`Step ${a.step}: ${a.title}. ${a.description}`);
+      });
+    }
     return msgs;
   }
 
@@ -72,6 +86,13 @@ function generateMessages(results: AnalysisResult, mode: SummaryMode): string[] 
     msgs.push(`⚠️ Critical: ${criticalTests.map((t) => t.name).join(", ")} — need immediate medical attention.`);
   if (slightlyOff.length > 0)
     msgs.push(`${slightlyOff.map((t) => t.name).join(", ")} are slightly outside normal — worth monitoring.`);
+
+  if (recommendedActions?.length) {
+    msgs.push("Here are the recommended next steps for you:");
+    recommendedActions.forEach((a) => {
+      msgs.push(`Step ${a.step}: ${a.title}. ${a.description}`);
+    });
+  }
 
   msgs.push("Scroll down for detailed panels, recommendations, and doctor advice. I'm AI — not a replacement for your doctor! 😊");
   return msgs;
