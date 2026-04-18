@@ -214,10 +214,9 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
     setIsSpeaking(false);
   }, []);
 
-  const speak = useCallback((text: string) => {
+  const speak = useCallback((text: string, langCode: LangCode) => {
     if (typeof window === "undefined" || !window.speechSynthesis || !text) return;
     const synth = window.speechSynthesis;
-    // Hard reset — Chrome bug: speechSynthesis "stuck" if previous utterance not cancelled cleanly
     speakTokenRef.current += 1;
     const myToken = speakTokenRef.current;
     try {
@@ -233,9 +232,15 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
     utterance.rate = 0.98;
     utterance.pitch = 1.05;
     utterance.volume = 1;
+    const targetLang = getBcp47(langCode);
+    utterance.lang = targetLang;
     const voices = synth.getVoices();
-    const preferred = voices.find((v) => /en[-_](US|GB)/i.test(v.lang) && /female|samantha|google/i.test(v.name))
-      || voices.find((v) => /^en/i.test(v.lang));
+    const langPrefix = targetLang.split("-")[0].toLowerCase();
+    // Prefer exact bcp47 match, then language prefix, then any default
+    const preferred =
+      voices.find((v) => v.lang?.toLowerCase() === targetLang.toLowerCase()) ||
+      voices.find((v) => v.lang?.toLowerCase().startsWith(langPrefix)) ||
+      voices.find((v) => /^en/i.test(v.lang));
     if (preferred) utterance.voice = preferred;
 
     utterance.onstart = () => {
@@ -249,7 +254,6 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
     };
     utteranceRef.current = utterance;
 
-    // Small delay lets cancel() flush in Chrome before speak()
     setTimeout(() => {
       if (myToken === speakTokenRef.current) {
         try {
