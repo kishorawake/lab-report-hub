@@ -2,6 +2,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, XCircle, ChevronDown, ChevronUp, Lightbulb, TrendingDown, Search, ExternalLink, BookOpen } from "lucide-react";
 import { useState } from "react";
 import type { AbnormalFinding } from "@/services/labAnalyzer";
+import { useLang } from "@/contexts/LangContext";
+import { useTranslated, useTranslatedList } from "@/services/translate";
 
 interface AbnormalFindingsProps {
   findings: AbnormalFinding[];
@@ -10,6 +12,15 @@ interface AbnormalFindingsProps {
 const FindingDetail = ({ finding }: { finding: AbnormalFinding }) => {
   const [expanded, setExpanded] = useState(false);
   const isCritical = finding.status.includes("critical");
+  const { lang } = useLang();
+  const tExplanation = useTranslated(finding.explanation, lang);
+  const tCauses = useTranslatedList(finding.possibleCauses, lang);
+  const tConsequences = useTranslatedList(finding.consequences, lang);
+  const tTips = useTranslatedList(finding.reductionTips, lang);
+  const tWhy = useTranslated("Why This Could Be High/Low", lang);
+  const tCons = useTranslated("Possible Consequences", lang);
+  const tImprove = useTranslated("How to Improve", lang);
+  const tRefs = useTranslated("Verified Medical References", lang);
 
   return (
     <motion.div
@@ -51,7 +62,7 @@ const FindingDetail = ({ finding }: { finding: AbnormalFinding }) => {
             )}
           </div>
         </div>
-        <p className="text-sm text-foreground/70 leading-relaxed">{finding.explanation}</p>
+        <p className="text-sm text-foreground/70 leading-relaxed">{tExplanation}</p>
       </button>
 
       <AnimatePresence>
