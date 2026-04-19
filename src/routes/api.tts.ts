@@ -10,7 +10,7 @@ import { createFileRoute } from "@tanstack/react-router";
 export const Route = createFileRoute("/api/tts")({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: async ({ request }: { request: Request }) => {
         const url = new URL(request.url);
         const text = url.searchParams.get("text")?.trim();
         const lang = url.searchParams.get("lang")?.trim() || "en";
