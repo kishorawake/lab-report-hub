@@ -406,19 +406,24 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
       stopSpeaking();
       setIsMuted(true);
     } else {
-      // Prime audio context with a silent utterance (browsers need a user gesture)
+      // Prime BOTH audio engines synchronously inside the user gesture.
       if (typeof window !== "undefined" && window.speechSynthesis) {
         try {
           const ping = new SpeechSynthesisUtterance(" ");
           ping.volume = 0;
           window.speechSynthesis.speak(ping);
-        } catch {
-          /* noop */
-        }
+        } catch { /* noop */ }
       }
+      // Prime HTMLAudioElement so subsequent .play() calls work for Indic TTS
+      try {
+        const primer = new Audio();
+        primer.muted = true;
+        primer.src = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA";
+        primer.play().catch(() => { /* noop */ });
+      } catch { /* noop */ }
       setIsMuted(false);
-      // Auto-play current message immediately on unmute
-      setTimeout(() => speak(messages[currentMsg] ?? "", lang), 120);
+      // Speak immediately within gesture context (no setTimeout — that breaks gesture)
+      speak(messages[currentMsg] ?? "", lang);
     }
     setSparkBurst((n) => n + 1);
   };
@@ -431,7 +436,7 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
   const goToMsg = (i: number) => {
     setCurrentMsg(i);
     setSparkBurst((n) => n + 1);
-    if (!isMuted) setTimeout(() => speak(messages[i] ?? "", lang), 100);
+    if (!isMuted) speak(messages[i] ?? "", lang);
   };
 
   // Re-speak current message when language changes (if unmuted)
