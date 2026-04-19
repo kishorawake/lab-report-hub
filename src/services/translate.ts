@@ -9,13 +9,15 @@
 
 import { useEffect, useState } from "react";
 
-export type LangCode = "en" | "hi" | "te" | "mr";
+export type LangCode = "en" | "hi" | "te" | "mr" | "ta" | "kn";
 
 export const LANGUAGES: { code: LangCode; label: string; native: string; bcp47: string }[] = [
   { code: "en", label: "English", native: "English", bcp47: "en-US" },
   { code: "hi", label: "Hindi", native: "हिन्दी", bcp47: "hi-IN" },
   { code: "te", label: "Telugu", native: "తెలుగు", bcp47: "te-IN" },
   { code: "mr", label: "Marathi", native: "मराठी", bcp47: "mr-IN" },
+  { code: "ta", label: "Tamil", native: "தமிழ்", bcp47: "ta-IN" },
+  { code: "kn", label: "Kannada", native: "ಕನ್ನಡ", bcp47: "kn-IN" },
 ];
 
 type Dict = Record<string, string>;
@@ -139,6 +141,8 @@ const dict: Record<Exclude<LangCode, "en">, Dict> = {
     "Upload a new lab report for instant AI insights.": "त्वरित एआय अंतर्दृष्टीसाठी नवीन लॅब अहवाल अपलोड करा.",
     "New Report": "नवीन अहवाल",
   },
+  ta: {},
+  kn: {},
 };
 
 /** Synchronous lookup — returns instant translation or original text. */
