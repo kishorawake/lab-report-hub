@@ -140,6 +140,7 @@ const dict: Record<Exclude<LangCode, "en">, Dict> = {
     "Analyze Another": "आणखी एक विश्लेषण",
     "Upload a new lab report for instant AI insights.": "त्वरित एआय अंतर्दृष्टीसाठी नवीन लॅब अहवाल अपलोड करा.",
     "New Report": "नवीन अहवाल",
+  },
   ta: {},
   kn: {},
 };
