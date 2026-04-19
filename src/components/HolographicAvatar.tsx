@@ -18,6 +18,7 @@ import aiDoctorPortrait from "@/assets/ai-doctor.png";
 import type { AnalysisResult } from "@/services/labAnalyzer";
 import { LANGUAGES, type LangCode, translate, translateAsync, getBcp47 } from "@/services/translate";
 import { useLang } from "@/contexts/LangContext";
+import { getTtsAudioUrl } from "@/services/ttsCache";
 
 /* ─── types ─── */
 interface HolographicAvatarProps {
@@ -303,20 +304,26 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
 
     if (token === speakTokenRef.current) setIsSpeaking(true);
 
-    const playNext = () => {
+    const playNext = async () => {
       if (token !== speakTokenRef.current) return;
       if (idx >= chunks.length) {
         if (token === speakTokenRef.current) setIsSpeaking(false);
         return;
       }
       const chunk = chunks[idx++];
-      // Same-origin proxy URL — no CORS, no referrer block
-      const url = `/api/tts?lang=${encodeURIComponent(tl)}&text=${encodeURIComponent(chunk)}`;
+      // Try IndexedDB cache first; falls back to direct /api/tts URL on failure
+      const { url, revoke } = await getTtsAudioUrl(chunk, tl);
+      if (token !== speakTokenRef.current) {
+        if (revoke) URL.revokeObjectURL(url);
+        return;
+      }
       const audio = new Audio(url);
       audioRef.current = audio;
-      audio.onended = () => playNext();
+      const cleanup = () => { if (revoke) URL.revokeObjectURL(url); };
+      audio.onended = () => { cleanup(); playNext(); };
       audio.onerror = (e) => {
         console.warn("[TTS] audio error for chunk:", chunk.slice(0, 40), e);
+        cleanup();
         playNext();
       };
       const playPromise = audio.play();
