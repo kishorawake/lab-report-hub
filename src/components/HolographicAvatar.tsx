@@ -14,6 +14,7 @@ import {
   Activity,
 } from "lucide-react";
 import aiDoctorAvatar from "@/assets/ai-doctor-avatar.png";
+import aiDoctorPortrait from "@/assets/ai-doctor.png";
 import type { AnalysisResult } from "@/services/labAnalyzer";
 import { LANGUAGES, type LangCode, translate, translateAsync, getBcp47 } from "@/services/translate";
 import { useLang } from "@/contexts/LangContext";
@@ -784,6 +785,93 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
             </div>
           </div>
         </div>
+      </motion.div>
+
+      {/* ─── AI Doctor Portrait with Halo + Aura ─── */}
+      <motion.div
+        initial={{ opacity: 0, y: 20, scale: 0.9 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ delay: 1.4, duration: 0.8, ease: "easeOut" }}
+        className="mt-4 relative flex items-end justify-center overflow-hidden rounded-2xl"
+        style={{ minHeight: 320 }}
+      >
+        {/* Soft radial aura background */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              "radial-gradient(ellipse at 50% 65%, hsl(var(--holo-primary) / 0.35) 0%, hsl(var(--holo-accent) / 0.18) 35%, transparent 70%)",
+          }}
+        />
+
+        {/* Pulsing aura rings */}
+        <motion.div
+          className="absolute left-1/2 top-[18%] -translate-x-1/2 rounded-full"
+          style={{
+            width: 180,
+            height: 180,
+            background:
+              "radial-gradient(circle, hsl(var(--holo-primary) / 0.45), transparent 65%)",
+            filter: "blur(18px)",
+          }}
+          animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0.95, 0.6] }}
+          transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className="absolute left-1/2 top-[14%] -translate-x-1/2 rounded-full border-2"
+          style={{
+            width: 160,
+            height: 160,
+            borderColor: "hsl(var(--holo-accent) / 0.5)",
+            boxShadow:
+              "0 0 30px hsl(var(--holo-primary) / 0.6), inset 0 0 25px hsl(var(--holo-accent) / 0.4)",
+          }}
+          animate={{ scale: [1, 1.08, 1], rotate: [0, 360] }}
+          transition={{
+            scale: { duration: 4, repeat: Infinity, ease: "easeInOut" },
+            rotate: { duration: 22, repeat: Infinity, ease: "linear" },
+          }}
+        />
+        <motion.div
+          className="absolute left-1/2 top-[10%] -translate-x-1/2 rounded-full border"
+          style={{
+            width: 200,
+            height: 200,
+            borderColor: "hsl(var(--holo-primary) / 0.35)",
+          }}
+          animate={{ scale: [1, 1.18, 1], opacity: [0.7, 0.2, 0.7] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+        />
+
+        {/* Floating particles */}
+        <HoloParticles count={14} />
+
+        {/* The doctor portrait — gentle float */}
+        <motion.img
+          src={aiDoctorPortrait}
+          alt="AI Doctor"
+          className="relative z-10 max-h-[300px] w-auto object-contain"
+          style={{
+            filter:
+              "drop-shadow(0 0 18px hsl(var(--holo-primary) / 0.55)) drop-shadow(0 8px 22px hsl(var(--holo-accent) / 0.35))",
+          }}
+          animate={{ y: [0, -8, 0] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+        />
+
+        {/* Bottom holo platform glow */}
+        <motion.div
+          className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full"
+          style={{
+            width: 180,
+            height: 18,
+            background:
+              "radial-gradient(ellipse, hsl(var(--holo-primary) / 0.7), transparent 70%)",
+            filter: "blur(6px)",
+          }}
+          animate={{ opacity: [0.5, 0.9, 0.5], scaleX: [1, 1.1, 1] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+        />
       </motion.div>
 
     </motion.div>
