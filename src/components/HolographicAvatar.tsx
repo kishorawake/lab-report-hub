@@ -277,9 +277,8 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
     []
   );
 
-  /* Google Translate TTS fallback — free, no API key, natural Indic voices.
-     Splits long text into <=180 char chunks and plays them sequentially.
-     Uses HTMLAudioElement which bypasses CORS for cross-origin media playback. */
+  /* Server-proxied Google TTS — bypasses browser CORS/referrer blocks.
+     Splits long text into <=180 char chunks and plays them sequentially. */
   const speakViaGoogle = useCallback((text: string, langCode: LangCode, token: number) => {
     const chunks: string[] = [];
     const sentences = text.split(/(?<=[.?!।])\s+/);
@@ -310,25 +309,19 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
         return;
       }
       const chunk = chunks[idx++];
-      const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(
-        chunk
-      )}&tl=${tl}&total=1&idx=0&textlen=${chunk.length}&client=tw-ob`;
-      const audio = new Audio();
-      audio.crossOrigin = "anonymous";
-      audio.src = url;
+      // Same-origin proxy URL — no CORS, no referrer block
+      const url = `/api/tts?lang=${encodeURIComponent(tl)}&text=${encodeURIComponent(chunk)}`;
+      const audio = new Audio(url);
       audioRef.current = audio;
       audio.onended = () => playNext();
-      audio.onerror = () => {
-        console.warn("[TTS] Google audio failed for chunk", chunk.slice(0, 40));
-        if (token === speakTokenRef.current) {
-          // Try next chunk rather than aborting entirely
-          playNext();
-        }
+      audio.onerror = (e) => {
+        console.warn("[TTS] audio error for chunk:", chunk.slice(0, 40), e);
+        playNext();
       };
       const playPromise = audio.play();
       if (playPromise && typeof playPromise.catch === "function") {
         playPromise.catch((err) => {
-          console.warn("[TTS] play() rejected:", err?.message);
+          console.warn("[TTS] play() rejected:", err?.message || err);
           if (token === speakTokenRef.current) setIsSpeaking(false);
         });
       }
