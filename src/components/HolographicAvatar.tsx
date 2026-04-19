@@ -255,8 +255,31 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
     setIsSpeaking(false);
   }, []);
 
+  /* Pick the most natural-sounding female voice for a language. */
+  const pickFemaleVoice = useCallback(
+    (voices: SpeechSynthesisVoice[], targetLang: string): SpeechSynthesisVoice | undefined => {
+      const prefix = targetLang.split("-")[0].toLowerCase();
+      const matches = voices.filter(
+        (v) =>
+          v.lang?.toLowerCase() === targetLang.toLowerCase() ||
+          v.lang?.toLowerCase().startsWith(prefix)
+      );
+      if (matches.length === 0) return undefined;
+
+      const femaleHints = /female|woman|samantha|victoria|karen|tessa|moira|fiona|zira|hazel|susan|allison|ava|serena|kate|google\s+(uk|us)\s+english\s+female|aditi|raveena|swara|priya|kalpana|lekha/i;
+      const maleHints = /male|man|david|mark|alex|fred|daniel|oliver|guy|george|ravi|hemant/i;
+
+      const female = matches.find((v) => femaleHints.test(v.name));
+      if (female) return female;
+      const notMale = matches.find((v) => !maleHints.test(v.name));
+      return notMale ?? matches[0];
+    },
+    []
+  );
+
   /* Google Translate TTS fallback — free, no API key, natural Indic voices.
-     Splits long text into <=180 char chunks and plays them sequentially. */
+     Splits long text into <=180 char chunks and plays them sequentially.
+     Uses HTMLAudioElement which bypasses CORS for cross-origin media playback. */
   const speakViaGoogle = useCallback((text: string, langCode: LangCode, token: number) => {
     const chunks: string[] = [];
     const sentences = text.split(/(?<=[.?!।])\s+/);
@@ -273,31 +296,42 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
       }
     }
     if (buf) chunks.push(buf.trim());
+    if (chunks.length === 0) return;
 
     const tl = langCode === "en" ? "en" : langCode;
     let idx = 0;
+
+    if (token === speakTokenRef.current) setIsSpeaking(true);
+
     const playNext = () => {
       if (token !== speakTokenRef.current) return;
       if (idx >= chunks.length) {
-        setIsSpeaking(false);
+        if (token === speakTokenRef.current) setIsSpeaking(false);
         return;
       }
       const chunk = chunks[idx++];
       const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(
         chunk
-      )}&tl=${tl}&client=tw-ob`;
-      const audio = new Audio(url);
+      )}&tl=${tl}&total=1&idx=0&textlen=${chunk.length}&client=tw-ob`;
+      const audio = new Audio();
+      audio.crossOrigin = "anonymous";
+      audio.src = url;
       audioRef.current = audio;
-      audio.onplay = () => {
-        if (token === speakTokenRef.current) setIsSpeaking(true);
-      };
       audio.onended = () => playNext();
       audio.onerror = () => {
-        if (token === speakTokenRef.current) setIsSpeaking(false);
+        console.warn("[TTS] Google audio failed for chunk", chunk.slice(0, 40));
+        if (token === speakTokenRef.current) {
+          // Try next chunk rather than aborting entirely
+          playNext();
+        }
       };
-      audio.play().catch(() => {
-        if (token === speakTokenRef.current) setIsSpeaking(false);
-      });
+      const playPromise = audio.play();
+      if (playPromise && typeof playPromise.catch === "function") {
+        playPromise.catch((err) => {
+          console.warn("[TTS] play() rejected:", err?.message);
+          if (token === speakTokenRef.current) setIsSpeaking(false);
+        });
+      }
     };
     playNext();
   }, []);
@@ -321,29 +355,24 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
     if (!cleanText) return;
 
     const targetLang = getBcp47(langCode);
-    const langPrefix = targetLang.split("-")[0].toLowerCase();
     const voices = synth?.getVoices() ?? [];
-    const nativeVoice =
-      voices.find((v) => v.lang?.toLowerCase() === targetLang.toLowerCase()) ||
-      voices.find((v) => v.lang?.toLowerCase().startsWith(langPrefix));
+    const femaleVoice = pickFemaleVoice(voices, targetLang);
 
-    // For Indic languages, prefer Google TTS unless device has a real native voice.
+    // For Indic languages, ALWAYS prefer Google TTS — browser native Indic voices
+    // are rare and often robotic/male. Google gives consistent natural female tone.
     const isIndic = langCode !== "en";
-    if ((isIndic && !nativeVoice) || !synth) {
+    if (isIndic || !synth) {
       speakViaGoogle(cleanText, langCode, myToken);
       return;
     }
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.rate = 0.98;
-    utterance.pitch = 1.05;
+    // Calm, formal, human female tone
+    utterance.rate = 0.92;
+    utterance.pitch = 1.1;
     utterance.volume = 1;
     utterance.lang = targetLang;
-    if (nativeVoice) utterance.voice = nativeVoice;
-    else {
-      const en = voices.find((v) => /^en/i.test(v.lang));
-      if (en) utterance.voice = en;
-    }
+    if (femaleVoice) utterance.voice = femaleVoice;
 
     utterance.onstart = () => {
       if (myToken === speakTokenRef.current) setIsSpeaking(true);
@@ -358,16 +387,12 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
     };
     utteranceRef.current = utterance;
 
-    setTimeout(() => {
-      if (myToken === speakTokenRef.current) {
-        try {
-          synth.speak(utterance);
-        } catch {
-          speakViaGoogle(cleanText, langCode, speakTokenRef.current);
-        }
-      }
-    }, 60);
-  }, [speakViaGoogle]);
+    try {
+      synth.speak(utterance);
+    } catch {
+      speakViaGoogle(cleanText, langCode, speakTokenRef.current);
+    }
+  }, [speakViaGoogle, pickFemaleVoice]);
 
   /* Cleanup any ongoing speech on unmount */
   useEffect(() => {
