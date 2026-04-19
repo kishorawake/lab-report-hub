@@ -7,7 +7,17 @@ import { createFileRoute } from "@tanstack/react-router";
  * Usage: GET /api/tts?text=...&lang=hi
  * Returns: audio/mpeg stream
  */
-export const Route = createFileRoute("/api/tts")({
+export const Route = createFileRoute("/api/tts")(({
+  server: {
+    handlers: {
+      GET: async ({ request }: { request: Request }) => {
+        return ttsHandler(request);
+      },
+    },
+  },
+}) as any);
+
+async function ttsHandler(request: Request): Promise<Response> {
   server: {
     handlers: {
       GET: async ({ request }: { request: Request }) => {
