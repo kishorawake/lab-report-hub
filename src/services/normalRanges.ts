@@ -72,6 +72,17 @@ export const normalRanges: Record<string, NormalRange> = {
   "Free T4": { min: 0.8, max: 1.8, unit: "ng/dL", panel: "Thyroid Function" },
   "Urine pH": { min: 4.5, max: 8, unit: "", panel: "Urine Routine" },
   "Urine Specific Gravity": { min: 1.005, max: 1.030, unit: "", panel: "Urine Routine" },
+  "Estimated Average Glucose": { min: 70, max: 126, unit: "mg/dL", panel: "Blood Sugar", criticalHigh: 240 },
+  "Vitamin D": { min: 30, max: 100, unit: "ng/mL", panel: "Vitamins & Minerals", criticalLow: 10 },
+  "Magnesium": { min: 1.7, max: 2.2, unit: "mg/dL", panel: "Electrolytes" },
+  "Phosphorus": { min: 2.5, max: 4.5, unit: "mg/dL", panel: "Electrolytes" },
+  "LDH": { min: 140, max: 280, unit: "U/L", panel: "Liver Health" },
+  "Amylase": { min: 30, max: 110, unit: "U/L", panel: "Pancreatic Function" },
+  "Lipase": { min: 0, max: 160, unit: "U/L", panel: "Pancreatic Function" },
+  "PSA": { min: 0, max: 4, unit: "ng/mL", panel: "Prostate" },
+  "PT": { min: 11, max: 13.5, unit: "sec", panel: "Coagulation" },
+  "INR": { min: 0.8, max: 1.2, unit: "", panel: "Coagulation" },
+  "APTT": { min: 25, max: 35, unit: "sec", panel: "Coagulation" },
 };
 
 export type TestStatus = "normal" | "slightly_low" | "slightly_high" | "critical_low" | "critical_high";
