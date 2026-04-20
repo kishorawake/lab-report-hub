@@ -168,7 +168,7 @@ function extractTestsFromText(text: string): LabTest[] {
         if (/[<>=]\s*$/.test(before)) continue;
         if (/^\s*[-–]\s*\d/.test(after)) continue;
         if (/\d\s*[-–]\s*$/.test(before)) continue;
-        const v = parseFloat(nm[0].replace(",", "."));
+        const v = parseFloat(nm[1].replace(",", "."));
         if (!isFinite(v)) continue;
         if (/^[.)]/.test(after) && v < 10 && Number.isInteger(v)) continue;
         if (v < lo || v > hi) continue;
