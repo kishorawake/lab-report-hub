@@ -62,69 +62,134 @@ export interface RecommendedAction {
   description: string;
 }
 
-// Synonyms map common report wording to canonical keys in normalRanges
+// Synonyms map common report wording to canonical keys in normalRanges.
 const synonyms: Record<string, string> = {
-  "hgb": "Hemoglobin", "hb": "Hemoglobin", "haemoglobin": "Hemoglobin",
-  "wbc": "WBC Count", "tlc": "WBC Count", "total leukocyte count": "WBC Count", "leukocytes": "WBC Count",
-  "rbc": "RBC Count", "erythrocytes": "RBC Count",
-  "hct": "Hematocrit", "pcv": "Hematocrit",
-  "plt": "Platelet Count", "platelets": "Platelet Count",
-  "ast": "SGOT (AST)", "sgot": "SGOT (AST)",
-  "alt": "SGPT (ALT)", "sgpt": "SGPT (ALT)",
-  "alp": "Alkaline Phosphatase",
-  "creatinine": "Serum Creatinine",
-  "urea": "Blood Urea",
-  "glucose fasting": "Fasting Blood Sugar", "fbs": "Fasting Blood Sugar", "fasting glucose": "Fasting Blood Sugar",
-  "rbs": "Random Blood Sugar", "random glucose": "Random Blood Sugar",
+  "hgb": "Hemoglobin", "hb": "Hemoglobin", "haemoglobin": "Hemoglobin", "hemoglobin": "Hemoglobin",
+  "wbc": "WBC Count", "tlc": "WBC Count", "total leukocyte count": "WBC Count",
+  "leukocytes": "WBC Count", "white blood cell": "WBC Count", "white blood cells": "WBC Count",
+  "rbc": "RBC Count", "erythrocytes": "RBC Count", "red blood cell": "RBC Count", "red blood cells": "RBC Count",
+  "hct": "Hematocrit", "pcv": "Hematocrit", "haematocrit": "Hematocrit",
+  "plt": "Platelet Count", "platelets": "Platelet Count", "platelet": "Platelet Count",
+  "ast": "SGOT (AST)", "sgot": "SGOT (AST)", "aspartate aminotransferase": "SGOT (AST)",
+  "alt": "SGPT (ALT)", "sgpt": "SGPT (ALT)", "alanine aminotransferase": "SGPT (ALT)",
+  "alp": "Alkaline Phosphatase", "alk phos": "Alkaline Phosphatase",
+  "creatinine": "Serum Creatinine", "serum creatinine": "Serum Creatinine",
+  "urea": "Blood Urea", "blood urea nitrogen": "BUN",
+  "glucose fasting": "Fasting Blood Sugar", "fbs": "Fasting Blood Sugar",
+  "fasting glucose": "Fasting Blood Sugar", "fasting blood glucose": "Fasting Blood Sugar",
+  "rbs": "Random Blood Sugar", "random glucose": "Random Blood Sugar", "random blood glucose": "Random Blood Sugar",
   "ppbs": "Post Prandial Blood Sugar", "post prandial glucose": "Post Prandial Blood Sugar",
-  "hba1c": "HbA1c", "glycated hemoglobin": "HbA1c", "a1c": "HbA1c",
-  "cholesterol total": "Total Cholesterol",
-  "tg": "Triglycerides",
+  "post prandial blood glucose": "Post Prandial Blood Sugar",
+  "hba1c": "HbA1c", "hb a1c": "HbA1c", "glycated hemoglobin": "HbA1c", "glycated haemoglobin": "HbA1c",
+  "a1c": "HbA1c", "glycosylated hemoglobin": "HbA1c", "glycosylated haemoglobin": "HbA1c",
+  "estimated average glucose": "Estimated Average Glucose", "eag": "Estimated Average Glucose",
+  "cholesterol total": "Total Cholesterol", "total cholesterol": "Total Cholesterol",
+  "tg": "Triglycerides", "triglyceride": "Triglycerides",
   "hdl": "HDL Cholesterol", "ldl": "LDL Cholesterol", "vldl": "VLDL Cholesterol",
+  "non-hdl": "Non-HDL Cholesterol", "non hdl": "Non-HDL Cholesterol",
   "na": "Sodium", "k": "Potassium", "cl": "Chloride", "ca": "Calcium",
-  "vit b12": "Vitamin B12", "b12": "Vitamin B12",
-  "c-reactive protein": "CRP", "c reactive protein": "CRP",
+  "vit b12": "Vitamin B12", "b12": "Vitamin B12", "cyanocobalamin": "Vitamin B12",
+  "vit d": "Vitamin D", "25-oh vitamin d": "Vitamin D", "25 hydroxy vitamin d": "Vitamin D",
+  "25(oh)d": "Vitamin D", "vitamin d3": "Vitamin D",
+  "c-reactive protein": "CRP", "c reactive protein": "CRP", "hs-crp": "CRP",
+  "tsh": "TSH", "thyroid stimulating hormone": "TSH",
+  "free t3": "Free T3", "ft3": "Free T3",
+  "free t4": "Free T4", "ft4": "Free T4",
+  "ggt": "GGT", "gamma gt": "GGT", "gamma-glutamyl transferase": "GGT",
+  "egfr": "eGFR",
+  "mg": "Magnesium", "phos": "Phosphorus",
+  "ldh": "LDH", "lactate dehydrogenase": "LDH",
 };
 
-// Parse text to extract test data — robust to OCR spacing, units, ranges
+// Lines that look like noise / wouldn't contain real test values
+const noisePatterns = [
+  /\bvisit date\b/i, /\bregistered on\b/i, /\bcollected on\b/i, /\breported on\b/i,
+  /\binterpretation\b/i, /\bremark\b/i, /\bbiological reference\b/i,
+  /^page\s+\d+\s+of\s+\d+/i, /\bvid no\b/i, /\bpid no\b/i, /\bphone\b/i, /\bcontact\b/i,
+  /\bpin code\b/i, /\baddress\b/i, /\baadhaar\b/i,
+];
+
+const datePattern = /\b\d{1,2}[-/](?:[A-Za-z]{3}|\d{1,2})[-/]\d{2,4}\b/g;
+
+// Parse text using a proximity window: find each test name occurrence, then
+// look ahead in a small window for the first plausible numeric value while
+// skipping dates, reference range bounds, and list markers.
 function extractTestsFromText(text: string): LabTest[] {
   const tests: LabTest[] = [];
   const seen = new Set<string>();
-  const cleaned = text.replace(/\u00A0/g, " ");
-  const lines = cleaned.split(/\r?\n/);
 
-  // Build candidate names: canonical + synonyms (sorted longest-first)
+  const cleaned = text
+    .replace(/\u00A0/g, " ")
+    .replace(datePattern, " ")
+    .replace(/[ \t]+/g, " ");
+
+  const compact = cleaned
+    .split(/\r?\n/)
+    .filter((l) => !noisePatterns.some((re) => re.test(l)))
+    .join(" \n ");
+
   const candidates: { token: string; canonical: string }[] = [];
-  for (const k of Object.keys(normalRanges)) candidates.push({ token: k, canonical: k });
-  for (const [syn, canon] of Object.entries(synonyms)) candidates.push({ token: syn, canonical: canon });
+  for (const k of Object.keys(normalRanges)) candidates.push({ token: k.toLowerCase(), canonical: k });
+  for (const [syn, canon] of Object.entries(synonyms)) candidates.push({ token: syn.toLowerCase(), canonical: canon });
   candidates.sort((a, b) => b.token.length - a.token.length);
 
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line) continue;
-    for (const { token, canonical } of candidates) {
-      if (seen.has(canonical)) continue;
-      const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const regex = new RegExp(`(?:^|[^a-z])${escaped}(?:[^a-z0-9]|$)[^\\d-]{0,40}([0-9]+(?:[.,][0-9]+)?)`, "i");
-      const match = line.match(regex);
-      if (!match) continue;
-      const value = parseFloat(match[1].replace(",", "."));
-      if (isNaN(value)) continue;
-      const range = normalRanges[canonical];
-      if (!range) continue;
-      const { status } = classifyTest(canonical, value);
-      tests.push({
-        name: canonical,
-        value,
-        rawValue: `${value} ${range.unit}`,
-        unit: range.unit,
-        normalRange: `${range.min} - ${range.max} ${range.unit}`,
-        status,
-        panel: range.panel,
-      });
-      seen.add(canonical);
-      break;
+  const lower = compact.toLowerCase();
+
+  for (const { token, canonical } of candidates) {
+    if (seen.has(canonical)) continue;
+    const range = normalRanges[canonical];
+    if (!range) continue;
+
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const wordRe = new RegExp(`(?:^|[^a-z0-9])${escaped}(?![a-z0-9])`, "gi");
+
+    // Plausibility bounds: a real value should be in the ballpark of the
+    // reference range (allow up to 5x max, and >= 0.1x min, or simply <= criticalHigh*1.5).
+    const lo = Math.max(0, range.min * 0.1);
+    const hi = Math.max(range.max * 5, (range.criticalHigh ?? range.max) * 1.5, range.max + 10);
+
+    let chosen: number | null = null;
+    let m: RegExpExecArray | null;
+    outer: while ((m = wordRe.exec(lower)) !== null) {
+      const start = m.index + m[0].length;
+      const window = compact.slice(start, start + 260);
+
+      // Number must be a standalone token (not embedded in identifier like "HbA1c").
+      const numRe = /(?:^|[^a-z0-9])(-?\d+(?:[.,]\d+)?)(?![a-z0-9])/gi;
+      let nm: RegExpExecArray | null;
+      while ((nm = numRe.exec(window)) !== null) {
+        const numStart = nm.index + nm[0].length - nm[1].length;
+        const before = window.slice(Math.max(0, numStart - 3), numStart);
+        const after = window.slice(numStart + nm[1].length, numStart + nm[1].length + 3);
+        const upToHere = window.slice(0, numStart);
+        const opens = (upToHere.match(/\(/g) || []).length;
+        const closes = (upToHere.match(/\)/g) || []).length;
+        if (opens > closes) continue;
+        if (/[<>=]\s*$/.test(before)) continue;
+        if (/^\s*[-–]\s*\d/.test(after)) continue;
+        if (/\d\s*[-–]\s*$/.test(before)) continue;
+        const v = parseFloat(nm[1].replace(",", "."));
+        if (!isFinite(v)) continue;
+        if (/^[.)]/.test(after) && v < 10 && Number.isInteger(v)) continue;
+        if (v < lo || v > hi) continue;
+        chosen = v;
+        break outer;
+      }
     }
+
+    if (chosen === null) continue;
+
+    const { status } = classifyTest(canonical, chosen);
+    tests.push({
+      name: canonical,
+      value: chosen,
+      rawValue: `${chosen} ${range.unit}`.trim(),
+      unit: range.unit,
+      normalRange: `${range.min} - ${range.max} ${range.unit}`.trim(),
+      status,
+      panel: range.panel,
+    });
+    seen.add(canonical);
   }
 
   return tests;
