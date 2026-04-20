@@ -141,27 +141,39 @@ function extractTestsFromText(text: string): LabTest[] {
     if (!range) continue;
 
     const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const wordRe = new RegExp(`(?:^|[^a-z0-9])${escaped}(?![a-z0-9])`, "i");
-    const m = wordRe.exec(lower);
-    if (!m) continue;
+    const wordRe = new RegExp(`(?:^|[^a-z0-9])${escaped}(?![a-z0-9])`, "gi");
 
-    const start = m.index + m[0].length;
-    const window = compact.slice(start, start + 220);
+    // Plausibility bounds: a real value should be in the ballpark of the
+    // reference range (allow up to 5x max, and >= 0.1x min, or simply <= criticalHigh*1.5).
+    const lo = Math.max(0, range.min * 0.1);
+    const hi = Math.max(range.max * 5, (range.criticalHigh ?? range.max) * 1.5, range.max + 10);
 
-    const numRe = /(-?\d+(?:[.,]\d+)?)/g;
-    let nm: RegExpExecArray | null;
     let chosen: number | null = null;
-    while ((nm = numRe.exec(window)) !== null) {
-      const before = window.slice(Math.max(0, nm.index - 3), nm.index);
-      const after = window.slice(nm.index + nm[0].length, nm.index + nm[0].length + 3);
-      if (/[<>=]\s*$/.test(before)) continue;
-      if (/^\s*[-–]\s*\d/.test(after)) continue;
-      if (/\d\s*[-–]\s*$/.test(before)) continue;
-      const v = parseFloat(nm[0].replace(",", "."));
-      if (!isFinite(v)) continue;
-      if (/^[.)]/.test(after) && v < 10 && Number.isInteger(v)) continue;
-      chosen = v;
-      break;
+    let m: RegExpExecArray | null;
+    outer: while ((m = wordRe.exec(lower)) !== null) {
+      const start = m.index + m[0].length;
+      const window = compact.slice(start, start + 260);
+
+      const numRe = /(-?\d+(?:[.,]\d+)?)/g;
+      let nm: RegExpExecArray | null;
+      while ((nm = numRe.exec(window)) !== null) {
+        const before = window.slice(Math.max(0, nm.index - 3), nm.index);
+        const after = window.slice(nm.index + nm[0].length, nm.index + nm[0].length + 3);
+        // Skip if inside parentheses qualifier directly after the test name (e.g. "(EDTA Whole Blood )")
+        const upToHere = window.slice(0, nm.index);
+        const opens = (upToHere.match(/\(/g) || []).length;
+        const closes = (upToHere.match(/\)/g) || []).length;
+        if (opens > closes) continue;
+        if (/[<>=]\s*$/.test(before)) continue;
+        if (/^\s*[-–]\s*\d/.test(after)) continue;
+        if (/\d\s*[-–]\s*$/.test(before)) continue;
+        const v = parseFloat(nm[0].replace(",", "."));
+        if (!isFinite(v)) continue;
+        if (/^[.)]/.test(after) && v < 10 && Number.isInteger(v)) continue;
+        if (v < lo || v > hi) continue;
+        chosen = v;
+        break outer;
+      }
     }
 
     if (chosen === null) continue;
