@@ -62,33 +62,68 @@ export interface RecommendedAction {
   description: string;
 }
 
-// Parse text to extract test data
+// Synonyms map common report wording to canonical keys in normalRanges
+const synonyms: Record<string, string> = {
+  "hgb": "Hemoglobin", "hb": "Hemoglobin", "haemoglobin": "Hemoglobin",
+  "wbc": "WBC Count", "tlc": "WBC Count", "total leukocyte count": "WBC Count", "leukocytes": "WBC Count",
+  "rbc": "RBC Count", "erythrocytes": "RBC Count",
+  "hct": "Hematocrit", "pcv": "Hematocrit",
+  "plt": "Platelet Count", "platelets": "Platelet Count",
+  "ast": "SGOT (AST)", "sgot": "SGOT (AST)",
+  "alt": "SGPT (ALT)", "sgpt": "SGPT (ALT)",
+  "alp": "Alkaline Phosphatase",
+  "creatinine": "Serum Creatinine",
+  "urea": "Blood Urea",
+  "glucose fasting": "Fasting Blood Sugar", "fbs": "Fasting Blood Sugar", "fasting glucose": "Fasting Blood Sugar",
+  "rbs": "Random Blood Sugar", "random glucose": "Random Blood Sugar",
+  "ppbs": "Post Prandial Blood Sugar", "post prandial glucose": "Post Prandial Blood Sugar",
+  "hba1c": "HbA1c", "glycated hemoglobin": "HbA1c", "a1c": "HbA1c",
+  "cholesterol total": "Total Cholesterol",
+  "tg": "Triglycerides",
+  "hdl": "HDL Cholesterol", "ldl": "LDL Cholesterol", "vldl": "VLDL Cholesterol",
+  "na": "Sodium", "k": "Potassium", "cl": "Chloride", "ca": "Calcium",
+  "vit b12": "Vitamin B12", "b12": "Vitamin B12",
+  "c-reactive protein": "CRP", "c reactive protein": "CRP",
+};
+
+// Parse text to extract test data — robust to OCR spacing, units, ranges
 function extractTestsFromText(text: string): LabTest[] {
   const tests: LabTest[] = [];
-  const lines = text.split("\n");
+  const seen = new Set<string>();
+  const cleaned = text.replace(/\u00A0/g, " ");
+  const lines = cleaned.split(/\r?\n/);
 
-  for (const line of lines) {
-    // Try to match patterns like "Test Name: 14.2 gms/dl (13-17)"
-    // or "Test Name    14.2    gms/dl    13 - 17"
-    for (const [testName, range] of Object.entries(normalRanges)) {
-      const escapedName = testName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const regex = new RegExp(`${escapedName}[:\\s]+([\\d.]+)`, "i");
+  // Build candidate names: canonical + synonyms (sorted longest-first)
+  const candidates: { token: string; canonical: string }[] = [];
+  for (const k of Object.keys(normalRanges)) candidates.push({ token: k, canonical: k });
+  for (const [syn, canon] of Object.entries(synonyms)) candidates.push({ token: syn, canonical: canon });
+  candidates.sort((a, b) => b.token.length - a.token.length);
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    for (const { token, canonical } of candidates) {
+      if (seen.has(canonical)) continue;
+      const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(`(?:^|[^a-z])${escaped}(?:[^a-z0-9]|$)[^\\d-]{0,40}([0-9]+(?:[.,][0-9]+)?)`, "i");
       const match = line.match(regex);
-      if (match) {
-        const value = parseFloat(match[1]);
-        if (!isNaN(value)) {
-          const { status } = classifyTest(testName, value);
-          tests.push({
-            name: testName,
-            value,
-            rawValue: `${value} ${range.unit}`,
-            unit: range.unit,
-            normalRange: `${range.min} - ${range.max} ${range.unit}`,
-            status,
-            panel: range.panel,
-          });
-        }
-      }
+      if (!match) continue;
+      const value = parseFloat(match[1].replace(",", "."));
+      if (isNaN(value)) continue;
+      const range = normalRanges[canonical];
+      if (!range) continue;
+      const { status } = classifyTest(canonical, value);
+      tests.push({
+        name: canonical,
+        value,
+        rawValue: `${value} ${range.unit}`,
+        unit: range.unit,
+        normalRange: `${range.min} - ${range.max} ${range.unit}`,
+        status,
+        panel: range.panel,
+      });
+      seen.add(canonical);
+      break;
     }
   }
 

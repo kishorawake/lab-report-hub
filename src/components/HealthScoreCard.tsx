@@ -177,26 +177,39 @@ const HealthScoreCard = ({ score, grade, optimal, attention, critical }: HealthS
           </div>
         </div>
 
-        {/* Breakdown stats */}
+        {/* Breakdown stats — clickable */}
         <div className="flex flex-col gap-2 flex-1">
           {[
-            { icon: CheckCircle, color: "text-status-normal", bg: "bg-status-normal/10", border: "border-status-normal/20", count: optimal, label: tOptimal },
-            { icon: AlertTriangle, color: "text-status-attention", bg: "bg-status-attention/10", border: "border-status-attention/20", count: attention, label: tAttention },
-            { icon: XCircle, color: "text-status-critical", bg: "bg-status-critical/10", border: "border-status-critical/20", count: critical, label: tCritical },
-          ].map(({ icon: Icon, color, bg, border, count, label }, i) => (
-            <motion.div
+            { icon: CheckCircle, color: "text-status-normal", bg: "bg-status-normal/10", border: "border-status-normal/20", count: optimal, label: tOptimal, target: "panels-section" },
+            { icon: AlertTriangle, color: "text-status-attention", bg: "bg-status-attention/10", border: "border-status-attention/20", count: attention, label: tAttention, target: "findings-section" },
+            { icon: XCircle, color: "text-status-critical", bg: "bg-status-critical/10", border: "border-status-critical/20", count: critical, label: tCritical, target: "findings-section" },
+          ].map(({ icon: Icon, color, bg, border, count, label, target }, i) => (
+            <motion.button
               key={label}
+              type="button"
+              onClick={() => {
+                const el = document.getElementById(target);
+                if (el) {
+                  el.scrollIntoView({ behavior: "smooth", block: "start" });
+                  el.classList.add("ring-2", "ring-primary/60", "rounded-2xl");
+                  setTimeout(() => el.classList.remove("ring-2", "ring-primary/60", "rounded-2xl"), 1600);
+                }
+              }}
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
+              whileHover={{ scale: 1.03, x: -2 }}
+              whileTap={{ scale: 0.97 }}
               transition={{ delay: 0.6 + i * 0.15, type: "spring", stiffness: 120 }}
-              className={`flex items-center gap-2 p-2 rounded-lg ${bg} border ${border} group cursor-default`}
+              className={`flex items-center gap-2 p-2 rounded-lg ${bg} border ${border} group cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-primary/50`}
+              aria-label={`${count} ${label}, jump to section`}
             >
               <Icon className={`w-3.5 h-3.5 ${color} group-hover:scale-110 transition-transform`} />
               <span className="text-sm text-foreground font-bold tabular-nums">
                 <AnimatedCounter target={count} delay={600 + i * 150} />
               </span>
-              <span className="text-xs text-muted-foreground">{label}</span>
-            </motion.div>
+              <span className="text-xs text-muted-foreground flex-1">{label}</span>
+              <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">→</span>
+            </motion.button>
           ))}
         </div>
       </div>

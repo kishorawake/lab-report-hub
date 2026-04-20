@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Upload, FileText, X, Sparkles } from "lucide-react";
 import ProcessingPipeline from "./ProcessingPipeline";
+import { extractTextFromFile } from "@/services/fileExtractor";
 
 interface UploadSectionProps {
   onFileProcessed: (text: string) => void;
@@ -15,6 +16,9 @@ const UploadSection = ({ onFileProcessed, onUseDemoData, isProcessing }: UploadS
   const [dragActive, setDragActive] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [progressMsg, setProgressMsg] = useState<string>("");
+  const [progressPct, setProgressPct] = useState<number>(0);
+  const [extracting, setExtracting] = useState(false);
 
   const processFile = useCallback(async (file: File) => {
     setError(null);
@@ -26,22 +30,27 @@ const UploadSection = ({ onFileProcessed, onUseDemoData, isProcessing }: UploadS
       return;
     }
 
-    const validTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg", "text/plain", "text/csv"];
-    if (!validTypes.includes(file.type) && !file.name.endsWith(".txt") && !file.name.endsWith(".csv")) {
+    const validTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg", "image/webp", "text/plain", "text/csv"];
+    const okExt = /\.(pdf|png|jpe?g|webp|txt|csv)$/i.test(file.name);
+    if (!validTypes.includes(file.type) && !okExt) {
       setError("Unsupported file type. Please upload PDF, image, or text file.");
       setFileName(null);
       return;
     }
 
     try {
-      if (file.type === "text/plain" || file.name.endsWith(".txt") || file.name.endsWith(".csv")) {
-        const text = await file.text();
-        onFileProcessed(text);
-      } else {
-        onFileProcessed("__USE_DEMO__");
-      }
-    } catch {
-      setError("Failed to read file. Please try again.");
+      setExtracting(true);
+      setProgressMsg("Preparing file…");
+      setProgressPct(2);
+      const text = await extractTextFromFile(file, (msg, pct) => {
+        setProgressMsg(msg);
+        if (typeof pct === "number") setProgressPct(pct);
+      });
+      setExtracting(false);
+      onFileProcessed(text || "");
+    } catch (e) {
+      setExtracting(false);
+      setError(e instanceof Error ? e.message : "Failed to read file. Please try again.");
       setFileName(null);
     }
   }, [onFileProcessed]);
@@ -60,6 +69,8 @@ const UploadSection = ({ onFileProcessed, onUseDemoData, isProcessing }: UploadS
     }
   };
 
+  const busy = isProcessing || extracting;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -77,14 +88,26 @@ const UploadSection = ({ onFileProcessed, onUseDemoData, isProcessing }: UploadS
         onDragLeave={() => setDragActive(false)}
         onDrop={handleDrop}
       >
-        {isProcessing ? (
+        {busy ? (
           <motion.div
             initial={{ scale: 0.9 }}
             animate={{ scale: 1 }}
             className="flex flex-col items-center gap-4"
           >
             <div className="w-full max-w-xs mx-auto">
-              <p className="text-sm font-semibold text-foreground mb-3 text-center">Analyzing your lab report...</p>
+              <p className="text-sm font-semibold text-foreground mb-2 text-center">
+                {extracting ? (progressMsg || "Reading your report…") : "Analyzing your lab report..."}
+              </p>
+              {extracting && (
+                <div className="w-full h-2 bg-secondary rounded-full overflow-hidden mb-3">
+                  <motion.div
+                    className="h-full hero-gradient"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progressPct}%` }}
+                    transition={{ ease: "easeOut", duration: 0.3 }}
+                  />
+                </div>
+              )}
               <ProcessingPipeline />
             </div>
           </motion.div>
