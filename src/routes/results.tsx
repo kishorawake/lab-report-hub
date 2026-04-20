@@ -169,7 +169,7 @@ function ResultsPageInner() {
               />
             </motion.div>
 
-            <motion.div variants={fadeUp}>
+            <motion.div variants={fadeUp} id="panels-section" className="scroll-mt-24">
               <h2 className="font-display text-base sm:text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
                 <span className="w-1 h-5 rounded-full hero-gradient inline-block" />
                 {tPanels}
@@ -181,7 +181,7 @@ function ResultsPageInner() {
               </div>
             </motion.div>
 
-            <motion.div variants={fadeUp}>
+            <motion.div variants={fadeUp} id="findings-section" className="scroll-mt-24">
               <AbnormalFindings findings={results.abnormalFindings} />
             </motion.div>
 
