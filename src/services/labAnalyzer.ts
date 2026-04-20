@@ -154,13 +154,14 @@ function extractTestsFromText(text: string): LabTest[] {
       const start = m.index + m[0].length;
       const window = compact.slice(start, start + 260);
 
-      const numRe = /(-?\d+(?:[.,]\d+)?)/g;
+      // Number must be a standalone token (not embedded in identifier like "HbA1c").
+      const numRe = /(?:^|[^a-z0-9])(-?\d+(?:[.,]\d+)?)(?![a-z0-9])/gi;
       let nm: RegExpExecArray | null;
       while ((nm = numRe.exec(window)) !== null) {
-        const before = window.slice(Math.max(0, nm.index - 3), nm.index);
-        const after = window.slice(nm.index + nm[0].length, nm.index + nm[0].length + 3);
-        // Skip if inside parentheses qualifier directly after the test name (e.g. "(EDTA Whole Blood )")
-        const upToHere = window.slice(0, nm.index);
+        const numStart = nm.index + nm[0].length - nm[1].length;
+        const before = window.slice(Math.max(0, numStart - 3), numStart);
+        const after = window.slice(numStart + nm[1].length, numStart + nm[1].length + 3);
+        const upToHere = window.slice(0, numStart);
         const opens = (upToHere.match(/\(/g) || []).length;
         const closes = (upToHere.match(/\)/g) || []).length;
         if (opens > closes) continue;
