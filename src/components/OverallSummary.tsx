@@ -28,6 +28,41 @@ const AnimatedNumber = ({ value, delay }: { value: number; delay: number }) => {
   );
 };
 
+interface FlipTileProps {
+  value: number;
+  label: string;
+  delay: number;
+  colorClass: string;
+  textColor: string;
+  back: string;
+  onClick: () => void;
+}
+
+const FlipTile = ({ value, label, delay, colorClass, textColor, back, onClick }: FlipTileProps) => {
+  const { lang } = useLang();
+  const tBack = useTranslated(back, lang);
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.97 }}
+      className="group relative h-[80px] w-full rounded-xl [transform-style:preserve-3d] transition-transform duration-500 hover:[transform:rotateY(180deg)] focus:outline-none focus:ring-2 focus:ring-primary/50"
+      aria-label={`${label}: ${value}. ${back}`}
+    >
+      <div className={`absolute inset-0 ${colorClass} rounded-xl p-3 flex flex-col items-center justify-center [backface-visibility:hidden]`}>
+        <div className={textColor}>
+          <AnimatedNumber value={value} delay={delay} />
+        </div>
+        <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
+      </div>
+      <div className={`absolute inset-0 ${colorClass} rounded-xl p-3 flex items-center justify-center [transform:rotateY(180deg)] [backface-visibility:hidden]`}>
+        <span className={`text-xs font-semibold ${textColor} text-center leading-tight`}>{tBack} →</span>
+      </div>
+    </motion.button>
+  );
+};
+
 const OverallSummary = ({ totalTests, normalTests, abnormalTests, summary, panelCount }: OverallSummaryProps) => {
   const { lang } = useLang();
   const tTitle = useTranslated("Overall Summary", lang);
@@ -36,6 +71,17 @@ const OverallSummary = ({ totalTests, normalTests, abnormalTests, summary, panel
   const tNormal = useTranslated("Normal", lang);
   const tNeed = useTranslated("Need Attention", lang);
   const tSummary = useTranslated(summary, lang);
+
+  const scrollTo = (id: string) => {
+    if (typeof document === "undefined") return;
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add("ring-2", "ring-primary/60", "rounded-2xl");
+      setTimeout(() => el.classList.remove("ring-2", "ring-primary/60", "rounded-2xl"), 1600);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -47,32 +93,10 @@ const OverallSummary = ({ totalTests, normalTests, abnormalTests, summary, panel
       <h3 className="font-display text-lg font-semibold text-foreground mb-4">{tTitle}</h3>
       <div className="text-sm text-muted-foreground mb-4">{tDetected}: {panelCount}</div>
 
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          className="bg-secondary rounded-xl p-3 text-center cursor-default transition-colors"
-        >
-          <AnimatedNumber value={totalTests} delay={0.4} />
-          <div className="text-xs text-muted-foreground mt-0.5">{tTotal}</div>
-        </motion.div>
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          className="bg-status-normal/10 rounded-xl p-3 text-center cursor-default"
-        >
-          <div className="text-status-normal">
-            <AnimatedNumber value={normalTests} delay={0.6} />
-          </div>
-          <div className="text-xs text-muted-foreground mt-0.5">{tNormal}</div>
-        </motion.div>
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          className="bg-status-critical/10 rounded-xl p-3 text-center cursor-default"
-        >
-          <div className="text-status-critical">
-            <AnimatedNumber value={abnormalTests} delay={0.8} />
-          </div>
-          <div className="text-xs text-muted-foreground mt-0.5">{tNeed}</div>
-        </motion.div>
+      <div className="grid grid-cols-3 gap-3 mb-5 [perspective:1000px]">
+        <FlipTile value={totalTests} label={tTotal} delay={0.4} colorClass="bg-secondary" textColor="text-foreground" back="View panels" onClick={() => scrollTo("panels-section")} />
+        <FlipTile value={normalTests} label={tNormal} delay={0.6} colorClass="bg-status-normal/10" textColor="text-status-normal" back="See details" onClick={() => scrollTo("panels-section")} />
+        <FlipTile value={abnormalTests} label={tNeed} delay={0.8} colorClass="bg-status-critical/10" textColor="text-status-critical" back="View findings" onClick={() => scrollTo("findings-section")} />
       </div>
 
       <p className="text-sm text-foreground/80 leading-relaxed">{tSummary}</p>
