@@ -88,14 +88,26 @@ const UploadSection = ({ onFileProcessed, onUseDemoData, isProcessing }: UploadS
         onDragLeave={() => setDragActive(false)}
         onDrop={handleDrop}
       >
-        {isProcessing ? (
+        {busy ? (
           <motion.div
             initial={{ scale: 0.9 }}
             animate={{ scale: 1 }}
             className="flex flex-col items-center gap-4"
           >
             <div className="w-full max-w-xs mx-auto">
-              <p className="text-sm font-semibold text-foreground mb-3 text-center">Analyzing your lab report...</p>
+              <p className="text-sm font-semibold text-foreground mb-2 text-center">
+                {extracting ? (progressMsg || "Reading your report…") : "Analyzing your lab report..."}
+              </p>
+              {extracting && (
+                <div className="w-full h-2 bg-secondary rounded-full overflow-hidden mb-3">
+                  <motion.div
+                    className="h-full hero-gradient"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progressPct}%` }}
+                    transition={{ ease: "easeOut", duration: 0.3 }}
+                  />
+                </div>
+              )}
               <ProcessingPipeline />
             </div>
           </motion.div>
