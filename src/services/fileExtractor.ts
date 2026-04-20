@@ -31,9 +31,7 @@ async function extractFromImage(file: File | Blob, onProgress?: ProgressFn): Pro
 async function extractFromPdf(file: File, onProgress?: ProgressFn): Promise<string> {
   onProgress?.("Reading PDF…", 5);
   const pdfjs = await import("pdfjs-dist");
-  // Use a CDN worker matching the installed version to avoid bundling issues.
-  // @ts-expect-error - version is available at runtime
-  const version = pdfjs.version || "4.7.76";
+  const version = (pdfjs as unknown as { version?: string }).version || "4.7.76";
   pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
 
   const buf = await file.arrayBuffer();
@@ -72,7 +70,7 @@ async function extractFromPdf(file: File, onProgress?: ProgressFn): Promise<stri
         canvas.height = viewport.height;
         const ctx = canvas.getContext("2d");
         if (!ctx) continue;
-        await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+        await page.render({ canvasContext: ctx, viewport } as Parameters<typeof page.render>[0]).promise;
         const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, "image/png"));
         if (!blob) continue;
         const url = URL.createObjectURL(blob);
