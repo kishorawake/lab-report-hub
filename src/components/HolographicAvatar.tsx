@@ -468,15 +468,15 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
         <div className="holo-scanlines rounded-2xl" />
 
         {/* Data streams */}
-        <DataStreams />
+        {!isMobile && <DataStreams />}
 
         <div className="relative z-10 p-5">
           {/* ─── Avatar Section ─── */}
           <div className="flex items-center gap-3 mb-4">
             <div className="relative">
               {/* Orbital rings */}
-              <HoloRing />
-              <HoloRing delay={4} />
+              {!isMobile && <HoloRing />}
+              {!isMobile && <HoloRing delay={4} />}
 
               {/* Avatar figure */}
               <motion.div
@@ -525,7 +525,7 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
               />
 
               {/* Particles around avatar */}
-              <HoloParticles count={8} />
+              {!isMobile && <HoloParticles count={8} />}
             </div>
 
             <div className="flex-1">
@@ -741,7 +741,7 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
         </div>
 
         {/* Particles in card background */}
-        <HoloParticles count={6} />
+        {!isMobile && <HoloParticles count={6} />}
       </div>
 
       {/* ─── Quick Stats (holographic style) ─── */}
@@ -854,7 +854,7 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
         />
 
         {/* Floating particles */}
-        <HoloParticles count={14} />
+        {!isMobile && <HoloParticles count={14} />}
 
         {/* The doctor portrait — gentle float */}
         <motion.img
