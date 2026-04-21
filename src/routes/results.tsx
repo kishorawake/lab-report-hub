@@ -80,7 +80,7 @@ function ResultsPageInner() {
 
   return (
     <div className="min-h-screen animated-bg relative overflow-hidden">
-      <div className="fixed inset-0 pointer-events-none -z-10">
+      <div className="fixed inset-0 pointer-events-none -z-10 hidden sm:block">
         <div className="absolute top-20 right-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl animate-blob" />
         <div className="absolute bottom-40 left-1/4 w-80 h-80 bg-accent/5 rounded-full blur-3xl animate-blob" style={{ animationDelay: "4s" }} />
       </div>

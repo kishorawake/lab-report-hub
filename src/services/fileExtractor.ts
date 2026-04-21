@@ -42,10 +42,42 @@ async function extractFromPdf(file: File, onProgress?: ProgressFn): Promise<stri
     onProgress?.(`Extracting page ${p}/${pdf.numPages}…`, 10 + Math.round((p / pdf.numPages) * 40));
     const page = await pdf.getPage(p);
     const content = await page.getTextContent();
-    const pageText = content.items
-      .map((it) => ("str" in it ? (it as { str: string }).str : ""))
-      .join(" ");
-    fullText += "\n" + pageText;
+    // Coordinate-based line reconstruction so table rows survive as actual lines.
+    // Group text items by their Y position (with tolerance), then sort within each
+    // line by X position. Insert wide spacing where horizontal gaps suggest columns.
+    type Item = { str: string; x: number; y: number; w: number };
+    const items: Item[] = [];
+    for (const it of content.items as unknown as Array<{ str?: string; transform?: number[]; width?: number }>) {
+      const s = (it.str ?? "").replace(/\s+/g, " ");
+      if (!s.trim()) continue;
+      const tr = it.transform || [1, 0, 0, 1, 0, 0];
+      items.push({ str: s, x: tr[4], y: tr[5], w: it.width ?? s.length * 4 });
+    }
+    const Y_TOL = 3;
+    const lineMap = new Map<number, Item[]>();
+    for (const it of items) {
+      const yKey = Math.round(it.y / Y_TOL) * Y_TOL;
+      const arr = lineMap.get(yKey) || [];
+      arr.push(it);
+      lineMap.set(yKey, arr);
+    }
+    const lines = Array.from(lineMap.entries())
+      .sort((a, b) => b[0] - a[0]) // top→bottom
+      .map(([, arr]) => {
+        arr.sort((a, b) => a.x - b.x);
+        let line = "";
+        for (let i = 0; i < arr.length; i++) {
+          if (i > 0) {
+            const prev = arr[i - 1];
+            const gap = arr[i].x - (prev.x + prev.w);
+            line += gap > 12 ? "    " : " ";
+          }
+          line += arr[i].str;
+        }
+        return line.trim();
+      })
+      .filter(Boolean);
+    fullText += "\n" + lines.join("\n");
   }
 
   // If the PDF has very little extractable text, it's likely scanned → OCR fallback.

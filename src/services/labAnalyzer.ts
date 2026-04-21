@@ -133,6 +133,55 @@ function extractTestsFromText(text: string): LabTest[] {
   for (const [syn, canon] of Object.entries(synonyms)) candidates.push({ token: syn.toLowerCase(), canonical: canon });
   candidates.sort((a, b) => b.token.length - a.token.length);
 
+  // ── Primary path: per-line table-row parser ──
+  // Many lab PDFs print "Test Name   value   unit   range" on one line.
+  // Coordinate-based extraction preserves these. Match aggressively.
+  const rawLines = cleaned.split(/\r?\n/);
+  for (const line of rawLines) {
+    if (!line || line.length > 240) continue;
+    if (noisePatterns.some((re) => re.test(line))) continue;
+    const lowerLine = line.toLowerCase();
+    for (const { token, canonical } of candidates) {
+      if (seen.has(canonical)) continue;
+      const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const nameRe = new RegExp(`(?:^|[^a-z0-9])${escaped}(?![a-z0-9])`, "i");
+      const m = nameRe.exec(lowerLine);
+      if (!m) continue;
+      // Look at everything after the matched test name on the same line.
+      const after = line.slice(m.index + m[0].length);
+      // Strip parenthetical method qualifiers like "(HPLC)" or "(EDTA Whole Blood)".
+      const noParens = after.replace(/\([^)]{1,40}\)/g, " ");
+      // First standalone number that isn't a date fragment or a range bound.
+      const numMatch = /(?:^|[^a-z0-9<>=≤≥-])(-?\d+(?:[.,]\d{1,3})?)(?![a-z0-9.])/i.exec(noParens);
+      if (!numMatch) continue;
+      const numStr = numMatch[1];
+      // Reject if number is part of a range like "5.7-6.4" right after.
+      const idxNum = noParens.indexOf(numStr, numMatch.index);
+      const tail = noParens.slice(idxNum + numStr.length, idxNum + numStr.length + 4);
+      if (/^\s*[-–]\s*\d/.test(tail)) continue;
+      const v = parseFloat(numStr.replace(",", "."));
+      if (!isFinite(v)) continue;
+      const range = normalRanges[canonical];
+      if (!range) continue;
+      const lo = Math.max(0, range.min * 0.05);
+      const hi = Math.max(range.max * 8, (range.criticalHigh ?? range.max) * 2, range.max + 50);
+      if (v < lo || v > hi) continue;
+      const { status } = classifyTest(canonical, v);
+      tests.push({
+        name: canonical,
+        value: v,
+        rawValue: `${v} ${range.unit}`.trim(),
+        unit: range.unit,
+        normalRange: `${range.min} - ${range.max} ${range.unit}`.trim(),
+        status,
+        panel: range.panel,
+      });
+      seen.add(canonical);
+      break;
+    }
+  }
+
+  // ── Fallback: proximity-window scan for tests not found per-line ──
   const lower = compact.toLowerCase();
 
   for (const { token, canonical } of candidates) {
