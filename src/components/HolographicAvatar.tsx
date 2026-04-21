@@ -19,6 +19,7 @@ import type { AnalysisResult } from "@/services/labAnalyzer";
 import { LANGUAGES, type LangCode, translate, translateAsync, getBcp47 } from "@/services/translate";
 import { useLang } from "@/contexts/LangContext";
 import { getTtsAudioUrl } from "@/services/ttsCache";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 /* ─── types ─── */
 interface HolographicAvatarProps {
@@ -167,6 +168,7 @@ const HoloRing = ({ delay = 0 }: { delay?: number }) => (
 const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
   const [mode, setMode] = useState<SummaryMode>("full");
   const { lang, setLang } = useLang();
+  const isMobile = useIsMobile();
   const baseMessages = useMemo(() => generateMessages(results, mode), [results, mode]);
   // Optimistic sync translation, then upgrade asynchronously via Google Translate.
   const [messages, setMessages] = useState<string[]>(() => baseMessages.map((m) => translate(m, lang)));
@@ -214,6 +216,7 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
   /* GSAP glow pulse on avatar */
   useEffect(() => {
     if (!avatarRef.current) return;
+    if (isMobile) return;
     const ctx = gsap.context(() => {
       gsap.to(avatarRef.current, {
         boxShadow: isSpeaking
@@ -224,7 +227,7 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
       });
     });
     return () => ctx.revert();
-  }, [isSpeaking]);
+  }, [isSpeaking, isMobile]);
 
   /* Reset msg index on mode change */
   useEffect(() => setCurrentMsg(0), [mode]);
@@ -465,15 +468,15 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
         <div className="holo-scanlines rounded-2xl" />
 
         {/* Data streams */}
-        <DataStreams />
+        {!isMobile && <DataStreams />}
 
         <div className="relative z-10 p-5">
           {/* ─── Avatar Section ─── */}
           <div className="flex items-center gap-3 mb-4">
             <div className="relative">
               {/* Orbital rings */}
-              <HoloRing />
-              <HoloRing delay={4} />
+              {!isMobile && <HoloRing />}
+              {!isMobile && <HoloRing delay={4} />}
 
               {/* Avatar figure */}
               <motion.div
@@ -522,7 +525,7 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
               />
 
               {/* Particles around avatar */}
-              <HoloParticles count={8} />
+              {!isMobile && <HoloParticles count={8} />}
             </div>
 
             <div className="flex-1">
@@ -738,7 +741,7 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
         </div>
 
         {/* Particles in card background */}
-        <HoloParticles count={6} />
+        {!isMobile && <HoloParticles count={6} />}
       </div>
 
       {/* ─── Quick Stats (holographic style) ─── */}
@@ -851,7 +854,7 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
         />
 
         {/* Floating particles */}
-        <HoloParticles count={14} />
+        {!isMobile && <HoloParticles count={14} />}
 
         {/* The doctor portrait — gentle float */}
         <motion.img

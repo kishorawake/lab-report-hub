@@ -293,7 +293,26 @@
   .animate-blob { animation: none !important; }
   .shimmer::after { animation: none !important; display: none !important; }
   .floating { animation: none !important; }
-  .holo-ring { animation-duration: 12s !important; }
+  .holo-ring { animation: none !important; display: none !important; }
+  .holo-scanlines { animation: none !important; opacity: 0.3; }
+  .holo-data-stream { animation: none !important; display: none !important; }
+  .holo-particle { animation: none !important; display: none !important; }
+  .holo-figure { animation: none !important; }
+  .holo-figure.projecting { animation: none !important; }
+  .holo-lip-overlay { animation: none !important; display: none !important; }
+  .glass-card { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .holo-subtitle-bar { backdrop-filter: blur(6px); }
+  .status-glow-normal, .status-glow-critical, .status-glow-attention { animation: none !important; }
+  .card-3d-inner { transition: none !important; }
+  .panel-card { transition: none !important; }
+  .panel-card:hover { transform: none !important; }
+  /* GPU compositing hint for scrolling smoothness */
+  body { -webkit-overflow-scrolling: touch; }
+}
+
+@media (max-width: 640px) {
+  /* Throttle any remaining infinite framer-motion loops by hiding offscreen */
+  * { will-change: auto !important; }
 }
 
 @keyframes pulse-glow {
