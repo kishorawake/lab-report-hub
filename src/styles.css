@@ -285,6 +285,17 @@
   50% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
 }
 
+/* Mobile + reduced-motion: disable expensive background animations and blurs.
+   These caused noticeable jank on phones (animated radial gradients + blur-3xl
+   blobs + shimmer + bg-shift all painting at once). */
+@media (max-width: 640px), (prefers-reduced-motion: reduce) {
+  .animated-bg { animation: none !important; background-size: 100% 100% !important; }
+  .animate-blob { animation: none !important; }
+  .shimmer::after { animation: none !important; display: none !important; }
+  .floating { animation: none !important; }
+  .holo-ring { animation-duration: 12s !important; }
+}
+
 @keyframes pulse-glow {
   0%, 100% { box-shadow: 0 0 20px hsl(185 75% 55% / 0.3); }
   50% { box-shadow: 0 0 40px hsl(185 75% 55% / 0.5); }
