@@ -54,7 +54,7 @@ function IndexPage() {
 
   return (
     <div className="min-h-screen animated-bg relative overflow-hidden">
-      <div className="fixed inset-0 pointer-events-none -z-10">
+      <div className="fixed inset-0 pointer-events-none -z-10 hidden sm:block">
         <div className="absolute top-20 left-1/3 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl animate-blob" />
         <div className="absolute bottom-20 right-1/4 w-[400px] h-[400px] bg-accent/5 rounded-full blur-3xl animate-blob" style={{ animationDelay: "4s" }} />
       </div>
