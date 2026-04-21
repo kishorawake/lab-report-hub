@@ -168,6 +168,7 @@ const HoloRing = ({ delay = 0 }: { delay?: number }) => (
 const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
   const [mode, setMode] = useState<SummaryMode>("full");
   const { lang, setLang } = useLang();
+  const isMobile = useIsMobile();
   const baseMessages = useMemo(() => generateMessages(results, mode), [results, mode]);
   // Optimistic sync translation, then upgrade asynchronously via Google Translate.
   const [messages, setMessages] = useState<string[]>(() => baseMessages.map((m) => translate(m, lang)));
