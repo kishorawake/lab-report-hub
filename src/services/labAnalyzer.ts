@@ -869,8 +869,26 @@ export async function analyzeLabReport(fileContent: string): Promise<AnalysisRes
   // Step 1: De-identify (HIPAA-aligned)
   const cleanedText = deidentifyText(fileContent);
 
-  // Step 2: Extract lab data
-  const tests = extractTestsFromText(cleanedText);
+  // Step 2: Extract lab data — dictionary-based first (best units / panels),
+  // then dynamic discovery fills in any tests we don't know about.
+  const known = extractTestsFromText(cleanedText);
+  const dynamic = extractDynamicRows(cleanedText);
+
+  // Dedupe: prefer dictionary entries (better units & ranges). Match by
+  // case-insensitive substring of cleaned name.
+  const knownNamesLower = new Set(known.map((t) => t.name.toLowerCase()));
+  const knownSynonymsLower = new Set<string>();
+  for (const [syn, canon] of Object.entries(synonyms)) {
+    if (knownNamesLower.has(canon.toLowerCase())) knownSynonymsLower.add(syn.toLowerCase());
+  }
+  const extras = dynamic.filter((d) => {
+    const n = d.name.toLowerCase();
+    if (knownNamesLower.has(n)) return false;
+    for (const known of knownNamesLower) if (n.includes(known) || known.includes(n)) return false;
+    for (const syn of knownSynonymsLower) if (n.includes(syn)) return false;
+    return true;
+  });
+  const tests = [...known, ...extras];
 
   // Step 3: Group into panels
   const panels = groupIntoPanels(tests);
