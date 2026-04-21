@@ -111,6 +111,164 @@ const noisePatterns = [
 
 const datePattern = /\b\d{1,2}[-/](?:[A-Za-z]{3}|\d{1,2})[-/]\d{2,4}\b/g;
 
+// ── Dynamic panel section detection ──
+// Map common report headers to a normalized panel name. Anything not in this
+// list still becomes a panel, but uses the verbatim header for display.
+const panelHeaderPatterns: Array<{ re: RegExp; panel: string }> = [
+  { re: /\b(complete blood count|cbc|haemogram|hemogram)\b/i, panel: "Blood Health (Complete Blood Count)" },
+  { re: /\b(liver function test|lft)\b/i, panel: "Liver Health" },
+  { re: /\b(renal function test|kidney function|rft|kft)\b/i, panel: "Kidney Function" },
+  { re: /\b(lipid profile|lipid panel)\b/i, panel: "Lipid Profile" },
+  { re: /\belectrolytes\b/i, panel: "Electrolytes" },
+  { re: /\b(thyroid|tsh.*panel|t3.*t4)\b/i, panel: "Thyroid Function" },
+  { re: /\b(blood (sugar|glucose)|glycosylated|hba1c|ghb)\b/i, panel: "Blood Sugar" },
+  { re: /\b(urine routine|urinalysis|urine examination)\b/i, panel: "Urine Routine" },
+  { re: /\b(esr|erythrocyte sedimentation|crp|inflammation)\b/i, panel: "Inflammation" },
+  { re: /\b(iron|ferritin|anemia profile|anaemia)\b/i, panel: "Anemia Profile" },
+  { re: /\b(vitamin|mineral)\b/i, panel: "Vitamins & Minerals" },
+  { re: /\b(coagulation|pt.*aptt|inr)\b/i, panel: "Coagulation" },
+  { re: /\b(amylase|lipase|pancreas)\b/i, panel: "Pancreatic Function" },
+  { re: /\b(serology|hbsag|hiv|hepatitis|widal|dengue|malaria)\b/i, panel: "Serology & Infections" },
+  { re: /\b(cotinine|nicotine|tobacco)\b/i, panel: "Lifestyle Markers" },
+];
+
+function normalizePanelName(headerText: string): string {
+  for (const { re, panel } of panelHeaderPatterns) {
+    if (re.test(headerText)) return panel;
+  }
+  // Fall back to a cleaned-up header (title case).
+  return headerText
+    .replace(/[^A-Za-z0-9& ()/-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .map((w) => (w.length > 2 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w))
+    .join(" ");
+}
+
+// Parse a free-text reference range like "0 - 6.5", "< 100", ">40", "Male (0.7 - 1.3)"
+// and a value to determine status. Returns null if range can't be parsed.
+function classifyAgainstInlineRange(value: number, rangeText: string): TestStatus | null {
+  if (!rangeText) return null;
+  const t = rangeText.replace(/Female[^()]*\([^)]*\)/i, " ").replace(/Male\s*/i, " ");
+  // < N or <= N
+  let m = t.match(/<\s*=?\s*(-?\d+(?:\.\d+)?)/);
+  if (m && !/-/.test(t.replace(m[0], ""))) {
+    const hi = parseFloat(m[1]);
+    if (value <= hi) return "normal";
+    const diff = (value - hi) / hi;
+    return diff > 0.5 ? "critical_high" : "slightly_high";
+  }
+  // > N or >= N
+  m = t.match(/>\s*=?\s*(-?\d+(?:\.\d+)?)/);
+  if (m && !/-/.test(t.replace(m[0], ""))) {
+    const lo = parseFloat(m[1]);
+    if (value >= lo) return "normal";
+    const diff = (lo - value) / lo;
+    return diff > 0.5 ? "critical_low" : "slightly_low";
+  }
+  // N - M  (allow "N to M")
+  m = t.match(/(-?\d+(?:\.\d+)?)\s*(?:-|–|to)\s*(-?\d+(?:\.\d+)?)/);
+  if (m) {
+    const lo = parseFloat(m[1]);
+    const hi = parseFloat(m[2]);
+    if (value >= lo && value <= hi) return "normal";
+    if (value < lo) {
+      const diff = (lo - value) / Math.max(lo, 0.0001);
+      return diff > 0.3 ? "critical_low" : "slightly_low";
+    }
+    const diff = (value - hi) / Math.max(hi, 0.0001);
+    return diff > 0.3 ? "critical_high" : "slightly_high";
+  }
+  return null;
+}
+
+// Lines that look like section/page chrome and shouldn't be treated as test rows.
+const tableNoise = [
+  /test description|value\(s\)|reference range|biological reference|investigation|observed value/i,
+  /^end of report|^\*\*end/i,
+  /authenticity check|signature|reg ?no/i,
+  /patient name|age\s*\/\s*gender|reporting date|collection date|referral|sample type|method:/i,
+  /^page \d+|^iso \d+|home sample|moryapathlab|metropolis/i,
+  /^\s*$/,
+];
+
+// Extract every (testName, value, unit, range) row found anywhere in the text,
+// regardless of whether the test appears in our normalRanges dictionary.
+// This is what gives us "dynamic discovery" of panels and tests.
+function extractDynamicRows(rawText: string): Array<{
+  name: string; value: number; rawValue: string; unit: string;
+  normalRange: string; status: TestStatus; panel: string;
+}> {
+  const out: Array<{
+    name: string; value: number; rawValue: string; unit: string;
+    normalRange: string; status: TestStatus; panel: string;
+  }> = [];
+
+  const lines = rawText.split(/\r?\n/).map((l) => l.replace(/\u00A0/g, " ").trim());
+  let currentPanel = "General";
+
+  // Detect headers by looking for lines that are either ALL CAPS title-like
+  // or that match a known panel pattern.
+  const isHeader = (l: string): string | null => {
+    if (!l || l.length > 80) return null;
+    if (tableNoise.some((re) => re.test(l))) return null;
+    if (/^[A-Z][A-Z &()/.,'-]{4,}$/.test(l) && !/\d/.test(l)) return l;
+    for (const { re } of panelHeaderPatterns) if (re.test(l)) return l;
+    return null;
+  };
+
+  // Match "Name  value  unit  range" on a single line. Allow the value to be
+  // either numeric or a short qualitative word (we keep numeric only here).
+  // Examples:
+  //   "Hemoglobin    14.2    gms/dl    13 - 17"
+  //   "Total Cholesterol  168.9  mg/dl  Desirable : < 200"
+  //   "URIC ACID  4.3  mg/dl  3.5 - 7.2"
+  //   "BUN  31.9  mg/dl  20 - 40"
+  const rowRe = /^([A-Za-z][A-Za-z0-9 .,'()/+\-]{1,55}?)\s{2,}(<?>?=?\s*-?\d+(?:[.,]\d+)?)\s*([A-Za-z%/µ\u00B5²³.\-]{0,15})?\s*(.{0,80})?$/;
+
+  for (const line of lines) {
+    const headerMatch = isHeader(line);
+    if (headerMatch) {
+      currentPanel = normalizePanelName(headerMatch);
+      continue;
+    }
+    if (tableNoise.some((re) => re.test(line))) continue;
+
+    const m = rowRe.exec(line);
+    if (!m) continue;
+    const rawName = m[1].trim();
+    if (rawName.length < 2) continue;
+    if (/^(date|page|name|age|gender|method|sample|note|remark|interpretation|reference|range)$/i.test(rawName)) continue;
+    const valueStr = m[2].replace(/[<>=\s]/g, "").replace(",", ".");
+    const v = parseFloat(valueStr);
+    if (!isFinite(v)) continue;
+    // Skip absurd values that are likely page numbers / IDs.
+    if (Math.abs(v) > 10_000_000) continue;
+    const unit = (m[3] || "").trim();
+    const rangeText = (m[4] || "").trim();
+
+    // Try classifying against the inline reference range.
+    const status: TestStatus = classifyAgainstInlineRange(v, rangeText) ?? "normal";
+
+    // Cleaned display name (Title Case).
+    const cleanName = rawName
+      .replace(/\b([A-Z]{2,})\b/g, (s) => s[0] + s.slice(1).toLowerCase())
+      .replace(/\s+/g, " ");
+
+    out.push({
+      name: cleanName,
+      value: v,
+      rawValue: unit ? `${v} ${unit}` : `${v}`,
+      unit,
+      normalRange: rangeText || "—",
+      status,
+      panel: currentPanel,
+    });
+  }
+  return out;
+}
+
 // Parse text using a proximity window: find each test name occurrence, then
 // look ahead in a small window for the first plausible numeric value while
 // skipping dates, reference range bounds, and list markers.
@@ -711,8 +869,26 @@ export async function analyzeLabReport(fileContent: string): Promise<AnalysisRes
   // Step 1: De-identify (HIPAA-aligned)
   const cleanedText = deidentifyText(fileContent);
 
-  // Step 2: Extract lab data
-  const tests = extractTestsFromText(cleanedText);
+  // Step 2: Extract lab data — dictionary-based first (best units / panels),
+  // then dynamic discovery fills in any tests we don't know about.
+  const known = extractTestsFromText(cleanedText);
+  const dynamic = extractDynamicRows(cleanedText);
+
+  // Dedupe: prefer dictionary entries (better units & ranges). Match by
+  // case-insensitive substring of cleaned name.
+  const knownNamesLower = new Set(known.map((t) => t.name.toLowerCase()));
+  const knownSynonymsLower = new Set<string>();
+  for (const [syn, canon] of Object.entries(synonyms)) {
+    if (knownNamesLower.has(canon.toLowerCase())) knownSynonymsLower.add(syn.toLowerCase());
+  }
+  const extras = dynamic.filter((d) => {
+    const n = d.name.toLowerCase();
+    if (knownNamesLower.has(n)) return false;
+    for (const known of knownNamesLower) if (n.includes(known) || known.includes(n)) return false;
+    for (const syn of knownSynonymsLower) if (n.includes(syn)) return false;
+    return true;
+  });
+  const tests = [...known, ...extras];
 
   // Step 3: Group into panels
   const panels = groupIntoPanels(tests);
