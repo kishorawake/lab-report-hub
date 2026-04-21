@@ -216,6 +216,7 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
   /* GSAP glow pulse on avatar */
   useEffect(() => {
     if (!avatarRef.current) return;
+    if (isMobile) return;
     const ctx = gsap.context(() => {
       gsap.to(avatarRef.current, {
         boxShadow: isSpeaking
@@ -226,7 +227,7 @@ const HolographicAvatar = ({ results }: HolographicAvatarProps) => {
       });
     });
     return () => ctx.revert();
-  }, [isSpeaking]);
+  }, [isSpeaking, isMobile]);
 
   /* Reset msg index on mode change */
   useEffect(() => setCurrentMsg(0), [mode]);
