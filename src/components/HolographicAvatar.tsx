@@ -19,6 +19,7 @@ import type { AnalysisResult } from "@/services/labAnalyzer";
 import { LANGUAGES, type LangCode, translate, translateAsync, getBcp47 } from "@/services/translate";
 import { useLang } from "@/contexts/LangContext";
 import { getTtsAudioUrl } from "@/services/ttsCache";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 /* ─── types ─── */
 interface HolographicAvatarProps {
